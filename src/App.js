@@ -864,19 +864,19 @@ function Avisos() {
 
 // ─── Home / Resumen general ───────────────────────────────────────────────────
 function Home({ onNavegar }) {
-  const hoy     = new Date()
-  const fechaHoy = hoy.toISOString().split('T')[0]
-  const mesHoy  = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`
   const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
   const meses      = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
-  const fechaLabel = `${diasSemana[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]} ${hoy.getFullYear()}`
+  const hoyLabel   = new Date()
+  const fechaLabel = `${diasSemana[hoyLabel.getDay()]} ${hoyLabel.getDate()} de ${meses[hoyLabel.getMonth()]} ${hoyLabel.getFullYear()}`
 
   const [datos, setDatos]     = useState(null)
   const [cargando, setCarg]   = useState(true)
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const cargar = async () => {
+      const hoy      = new Date()
+      const fechaHoy = hoy.toISOString().split('T')[0]
+      const mesHoy   = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`
       const { data: { user } } = await supabase.auth.getUser()
       const uid = user.id
       const [
