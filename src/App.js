@@ -282,6 +282,9 @@ function Cobros() {
   const [cargando, setCargando]   = useState(true)
   const [generando, setGenerando] = useState(false)
   const [msg, setMsg]             = useState('')
+  const [editando, setEditando]   = useState(null)   // { id, monto }
+  const [montoEdit, setMontoEdit] = useState('')
+  const [guardando, setGuardando] = useState(false)
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -334,12 +337,56 @@ function Cobros() {
     cargar()
   }
 
+  const abrirEditar = (cobro) => {
+    setEditando(cobro)
+    setMontoEdit(String(cobro.monto))
+  }
+
+  const guardarMonto = async () => {
+    const nuevo = parseInt(montoEdit.replace(/\D/g, ''), 10)
+    if (!nuevo || nuevo <= 0) return
+    setGuardando(true)
+    await supabase.from('cobros').update({ monto: nuevo }).eq('id', editando.id)
+    setGuardando(false)
+    setEditando(null)
+    cargar()
+  }
+
   const totalMes       = lista.reduce((acc, c) => acc + Number(c.monto), 0)
   const totalPagado    = lista.filter(c => c.pagado).reduce((acc, c) => acc + Number(c.monto), 0)
   const totalPendiente = totalMes - totalPagado
 
   return (
     <div style={s.vista}>
+
+      {/* Modal editar monto */}
+      {editando && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          role="dialog" aria-modal="true" aria-label="Editar monto">
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 320, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 17, color: '#0f1f3d' }}>Editar monto</h3>
+            <p style={{ margin: '0 0 18px', fontSize: 13, color: '#64748b' }}>{editando.alumnos?.nombre}</p>
+            <label htmlFor="monto-edit" style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Monto ($)</label>
+            <input
+              id="monto-edit"
+              type="number"
+              min="1"
+              style={{ ...s.input, width: '100%', boxSizing: 'border-box', fontSize: 16, marginBottom: 18 }}
+              value={montoEdit}
+              onChange={e => setMontoEdit(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') guardarMonto() }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button style={s.btnSecundario} onClick={() => setEditando(null)} disabled={guardando}>Cancelar</button>
+              <button style={s.btnPrimario} onClick={guardarMonto} disabled={guardando}>
+                {guardando ? 'Guardando…' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={s.vistaHeader}>
         <h2 style={s.vtitulo}>Cobros</h2>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -402,14 +449,15 @@ function Cobros() {
         </div>
       ) : (
         <div style={s.tabla} role="table" aria-label="Cobros del mes">
-          <div style={{ ...s.tablaHead, gridTemplateColumns: '1fr 1fr 110px 100px' }} role="row">
+          <div style={{ ...s.tablaHead, gridTemplateColumns: '1fr 1fr 130px 110px 44px' }} role="row">
             <span role="columnheader">Alumno</span>
             <span role="columnheader">Apoderado</span>
             <span role="columnheader">Monto</span>
             <span role="columnheader">Estado</span>
+            <span role="columnheader"></span>
           </div>
           {lista.map(c => (
-            <div key={c.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 110px 100px', opacity: c.pagado ? 0.9 : 1 }} role="row">
+            <div key={c.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 130px 110px 44px', opacity: c.pagado ? 0.9 : 1 }} role="row">
               <span style={s.celNombre} role="cell">{c.alumnos?.nombre || '—'}</span>
               <span style={s.cel} role="cell">{c.alumnos?.apoderados?.nombre || '—'}</span>
               <span style={{ ...s.cel, fontWeight: 600 }} role="cell">${Number(c.monto).toLocaleString('es-CL')}</span>
@@ -422,6 +470,14 @@ function Cobros() {
                 >
                   {c.pagado ? '✓ Pagado' : 'Pendiente'}
                 </button>
+              </span>
+              <span role="cell">
+                <button
+                  onClick={() => abrirEditar(c)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '2px 4px', borderRadius: 6, color: '#64748b' }}
+                  aria-label={`Editar monto de ${c.alumnos?.nombre}`}
+                  title="Editar monto"
+                >✏️</button>
               </span>
             </div>
           ))}
