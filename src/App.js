@@ -862,8 +862,117 @@ function Avisos() {
   )
 }
 
+// ─── Home / Resumen general ───────────────────────────────────────────────────
+function Home({ onNavegar }) {
+  const hoy     = new Date()
+  const fechaHoy = hoy.toISOString().split('T')[0]
+  const mesHoy  = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`
+  const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
+  const meses      = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+  const fechaLabel = `${diasSemana[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]} ${hoy.getFullYear()}`
+
+  const [datos, setDatos]     = useState(null)
+  const [cargando, setCarg]   = useState(true)
+
+  useEffect(() => {
+    const cargar = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      const uid = user.id
+      const [
+        { count: nApoderados },
+        { count: nAlumnos },
+        { data: cobros },
+        { count: nRutas },
+        { data: asistHoy },
+        { count: nAlumnosActivos },
+        { data: ultimoAviso },
+      ] = await Promise.all([
+        supabase.from('apoderados').select('*', { count: 'exact', head: true }).eq('user_id', uid),
+        supabase.from('alumnos').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('activo', true),
+        supabase.from('cobros').select('monto, pagado').eq('user_id', uid).gte('mes', mesHoy).lte('mes', `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-31`),
+        supabase.from('rutas').select('*', { count: 'exact', head: true }).eq('user_id', uid),
+        supabase.from('asistencia').select('presente').eq('user_id', uid).eq('fecha', fechaHoy).eq('tipo', 'ida'),
+        supabase.from('alumnos').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('activo', true),
+        supabase.from('avisos').select('mensaje, created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(1),
+      ])
+      const pendiente = (cobros || []).filter(c => !c.pagado).reduce((a, c) => a + Number(c.monto), 0)
+      const presentes = (asistHoy || []).filter(a => a.presente).length
+      const aviso     = ultimoAviso && ultimoAviso.length > 0 ? ultimoAviso[0] : null
+      const tiempoAviso = aviso ? tiempoRelativo(aviso.created_at) : null
+      setDatos({ nApoderados, nAlumnos, pendiente, nRutas, presentes, nAlumnosActivos, aviso, tiempoAviso })
+      setCarg(false)
+    }
+    cargar()
+  }, [])
+
+  const tiempoRelativo = (iso) => {
+    const diff = Math.floor((Date.now() - new Date(iso)) / 60000)
+    if (diff < 1)  return 'ahora mismo'
+    if (diff < 60) return `hace ${diff} min`
+    const h = Math.floor(diff / 60)
+    if (h < 24)    return `hace ${h} h`
+    return `hace ${Math.floor(h / 24)} días`
+  }
+
+  const tarjetas = datos ? [
+    { id: 'apoderados', icon: '👨‍👩‍👧', label: 'Apoderados', valor: datos.nApoderados ?? 0, sub: 'registrados', color: '#eff6ff', accent: '#2563eb' },
+    { id: 'alumnos',    icon: '🎒',     label: 'Alumnos activos', valor: datos.nAlumnos ?? 0, sub: 'en servicio', color: '#f0fdf4', accent: '#16a34a' },
+    { id: 'cobros',     icon: '💰',     label: 'Por cobrar', valor: `$${(datos.pendiente || 0).toLocaleString('es-CL')}`, sub: 'este mes', color: '#fefce8', accent: '#b45309' },
+    { id: 'rutas',      icon: '🗺️',     label: 'Rutas', valor: datos.nRutas ?? 0, sub: 'configuradas', color: '#fdf4ff', accent: '#9333ea' },
+    { id: 'asistencia', icon: '📋',     label: 'Asistencia hoy', valor: `${datos.presentes}/${datos.nAlumnosActivos ?? 0}`, sub: 'presentes en ida', color: '#f0f9ff', accent: '#0284c7' },
+    { id: 'avisos',     icon: '📢',     label: 'Último aviso', valor: datos.aviso ? '1' : '—', sub: datos.tiempoAviso || 'sin avisos', color: '#fff7ed', accent: '#ea580c' },
+  ] : []
+
+  return (
+    <div style={s.vista}>
+      <div style={{ marginBottom: 28 }}>
+        <h2 style={{ ...s.vtitulo, fontSize: 22, marginBottom: 4 }}>¡Bienvenido! 👋</h2>
+        <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>{fechaLabel}</p>
+      </div>
+
+      {cargando ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+              <Skeleton w={60} h={14} r={4} />
+              <div style={{ margin: '12px 0 6px' }}><Skeleton w={80} h={28} r={6} /></div>
+              <Skeleton w={100} h={12} r={4} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+          {tarjetas.map(t => (
+            <button
+              key={t.id}
+              onClick={() => onNavegar(t.id)}
+              style={{ background: t.color, borderRadius: 14, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,.07)', border: `1.5px solid ${t.accent}22`, cursor: 'pointer', textAlign: 'left', transition: 'transform .15s, box-shadow .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,.12)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,.07)' }}
+              aria-label={`Ir a ${t.label}`}
+            >
+              <div style={{ fontSize: 26, marginBottom: 10 }}>{t.icon}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: t.accent, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>{t.label}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#0f1f3d', lineHeight: 1, marginBottom: 6 }}>{t.valor}</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>{t.sub}</div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {datos && datos.aviso && (
+        <div style={{ marginTop: 28, background: '#fff', borderRadius: 12, padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', borderLeft: '4px solid #ea580c' }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: '#ea580c', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '.04em' }}>📢 Último aviso — {datos.tiempoAviso}</p>
+          <p style={{ fontSize: 14, color: '#374151', margin: 0 }}>{datos.aviso.mensaje}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Menú ─────────────────────────────────────────────────────────────────────
 const MENU = [
+  { id: 'home',       icon: '🏠',     label: 'Inicio' },
   { id: 'apoderados', icon: '👨‍👩‍👧', label: 'Apoderados' },
   { id: 'alumnos',    icon: '🎒',     label: 'Alumnos' },
   { id: 'cobros',     icon: '💰',     label: 'Cobros' },
@@ -878,7 +987,7 @@ const MENU = [
 const SIDEBAR_W = 240
 
 function Dashboard({ sesion, onLogout }) {
-  const [seccion, setSeccion]       = useState('apoderados')
+  const [seccion, setSeccion]       = useState('home')
   const [drawerAbierto, setDrawer]  = useState(false)
   // Detectar ancho para mostrar/ocultar sidebar fijo
   const [esDesktop, setEsDesktop]   = useState(window.innerWidth >= 768)
@@ -968,6 +1077,7 @@ function Dashboard({ sesion, onLogout }) {
           </button>
         </header>
         <div style={{ flex: 1, overflowY: 'auto' }}>
+          {seccion === 'home'       && <Home onNavegar={setSeccion} />}
           {seccion === 'apoderados' && <Apoderados />}
           {seccion === 'alumnos'    && <Alumnos />}
           {seccion === 'cobros'     && <Cobros />}
