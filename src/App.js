@@ -1180,7 +1180,7 @@ function Login({ vistaInicial = 'login' }) {
             </p>
             <button
               style={s.btn}
-              onClick={() => { setVista('login'); setMsg('') }}
+              onClick={() => setVista('login')}
             >
               Volver al inicio de sesión
             </button>
