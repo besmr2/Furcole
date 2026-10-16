@@ -874,6 +874,7 @@ function Home({ onNavegar }) {
   const [datos, setDatos]     = useState(null)
   const [cargando, setCarg]   = useState(true)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const cargar = async () => {
       const { data: { user } } = await supabase.auth.getUser()
