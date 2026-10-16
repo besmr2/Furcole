@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
+import { QRCodeCanvas as QRCode } from 'qrcode.react'
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 function Skeleton({ w = '100%', h = 18, r = 6 }) {
@@ -430,11 +431,208 @@ function Cobros() {
   )
 }
 
+// ─── Rutas ────────────────────────────────────────────────────────────────────
+function Rutas() {
+  const [lista, setLista] = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({})
+  const [editId, setEditId] = useState(null)
+  const [token, setToken] = useState(null)
+  const [copiado, setCopiado] = useState(false)
+
+  const cargar = useCallback(async () => {
+    setCargando(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const [{ data: rutas }, { data: inv }] = await Promise.all([
+      supabase.from('rutas').select('*').eq('user_id', user.id).order('nombre'),
+      supabase.from('invitaciones').select('token').eq('user_id', user.id).eq('activo', true).limit(1)
+    ])
+    setLista(rutas || [])
+    setToken(inv && inv.length > 0 ? inv[0].token : null)
+    setCargando(false)
+  }, [])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const generarToken = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('invitaciones')
+      .insert({ user_id: user.id })
+      .select('token')
+      .single()
+    if (data) setToken(data.token)
+  }
+
+  const linkRegistro = token
+  ? `${process.env.REACT_APP_URL || window.location.origin}/registro/${token}`
+  : null
+
+  const copiarLink = () => {
+    if (!linkRegistro) return
+    navigator.clipboard.writeText(linkRegistro).then(() => {
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2000)
+    })
+  }
+
+  const abrirNuevo = () => {
+    setForm({ nombre: '', direccion: '', horario_ida: '', horario_vuelta: '', capacidad: 10 })
+    setEditId(null)
+    setModal(true)
+  }
+
+  const abrirEditar = (r) => {
+    setForm({ nombre: r.nombre, direccion: r.direccion || '', horario_ida: r.horario_ida || '', horario_vuelta: r.horario_vuelta || '', capacidad: r.capacidad })
+    setEditId(r.id)
+    setModal(true)
+  }
+
+  const cerrar = () => setModal(false)
+
+  const guardar = async (e) => {
+    e.preventDefault()
+    const { data: { user } } = await supabase.auth.getUser()
+    const payload = { ...form, user_id: user.id, capacidad: Number(form.capacidad) }
+    if (editId) {
+      await supabase.from('rutas').update(payload).eq('id', editId)
+    } else {
+      await supabase.from('rutas').insert(payload)
+    }
+    cerrar()
+    cargar()
+  }
+
+  const eliminar = async (id) => {
+    if (!window.confirm('¿Eliminar esta ruta?')) return
+    await supabase.from('rutas').delete().eq('id', id)
+    cargar()
+  }
+
+  return (
+    <div style={s.vista}>
+      <div style={s.vistaHeader}>
+        <h2 style={s.vtitulo}>Mis Rutas</h2>
+        <button style={s.btnPrimario} onClick={abrirNuevo}>+ Nueva ruta</button>
+      </div>
+
+      {/* Panel QR / Link de registro */}
+      <div style={{ background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: 20, marginBottom: 24 }}>
+        <p style={{ fontWeight: 600, marginBottom: 8 }}>🔗 Link de registro para apoderados</p>
+        {token ? (
+          <div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+              <input
+                readOnly
+                value={linkRegistro}
+                style={{ ...s.input, flex: 1, minWidth: 200, fontSize: 12, color: '#374151', background: '#fff' }}
+                aria-label="Link de registro"
+              />
+              <button style={s.btnSecundario} onClick={copiarLink}>
+                {copiado ? '✓ Copiado' : 'Copiar link'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ background: '#fff', padding: 12, borderRadius: 8, display: 'inline-block' }}>
+                <QRCode value={linkRegistro} size={160} level="M" />
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', marginTop: 8 }}>
+              Comparte este QR o link con los apoderados para que se inscriban
+            </p>
+          </div>
+        ) : (
+          <div>
+            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+              Genera tu link único para que los apoderados puedan inscribirse.
+            </p>
+            <button style={s.btnPrimario} onClick={generarToken}>Generar mi link y QR</button>
+          </div>
+        )}
+      </div>
+
+      {/* Lista de rutas */}
+      {cargando ? (
+        <div style={s.skeletonWrap} aria-busy="true">
+          {[1, 2].map(i => (
+            <div key={i} style={s.skeletonFila}>
+              <Skeleton w={160} h={16} />
+              <Skeleton w={120} h={14} />
+            </div>
+          ))}
+        </div>
+      ) : lista.length === 0 ? (
+        <div style={s.vacio} role="status">
+          <span style={{ fontSize: 40 }}>🗺️</span>
+          <p>Aún no tienes rutas registradas.<br />Agrega los colegios a los que haces transporte.</p>
+        </div>
+      ) : (
+        <div style={s.tabla} role="table" aria-label="Rutas">
+          <div style={{ ...s.tablaHead, gridTemplateColumns: '1.5fr 1.5fr 80px 80px 90px 70px' }} role="row">
+            <span role="columnheader">Colegio</span>
+            <span role="columnheader">Dirección</span>
+            <span role="columnheader">Ida</span>
+            <span role="columnheader">Vuelta</span>
+            <span role="columnheader">Capacidad</span>
+            <span role="columnheader" aria-label="Acciones" />
+          </div>
+          {lista.map(r => (
+            <div key={r.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1.5fr 1.5fr 80px 80px 90px 70px' }} role="row">
+              <span style={s.celNombre} role="cell">{r.nombre}</span>
+              <span style={s.cel} role="cell">{r.direccion || '—'}</span>
+              <span style={s.cel} role="cell">{r.horario_ida || '—'}</span>
+              <span style={s.cel} role="cell">{r.horario_vuelta || '—'}</span>
+              <span style={s.cel} role="cell">{r.capacidad} cupos</span>
+              <span style={s.celAcciones} role="cell">
+                <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(r)} aria-label={`Editar ruta ${r.nombre}`}>✏️</button>
+                <button className="btn-icon" style={s.btnIcono} onClick={() => eliminar(r.id)} aria-label={`Eliminar ruta ${r.nombre}`}>🗑️</button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      {modal && (
+        <div style={s.modalFondo} role="dialog" aria-modal="true" aria-label={editId ? 'Editar ruta' : 'Nueva ruta'} onClick={e => { if (e.target === e.currentTarget) cerrar() }}>
+          <div style={s.modalCard}>
+            <h3 style={s.modalTitulo}>{editId ? 'Editar ruta' : 'Nueva ruta'}</h3>
+            <form onSubmit={guardar} style={s.form} noValidate>
+              <label style={s.label} htmlFor="r-nombre">Nombre del colegio <span aria-hidden="true" style={{ color: '#dc2626' }}>*</span></label>
+              <input id="r-nombre" style={s.input} required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Colegio San Ignacio" autoFocus />
+              <label style={s.label} htmlFor="r-dir">Dirección</label>
+              <input id="r-dir" style={s.input} value={form.direccion} onChange={e => setForm(f => ({ ...f, direccion: e.target.value }))} placeholder="Ej: Av. España 123, Concepción" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={s.label} htmlFor="r-ida">Horario ida</label>
+                  <input id="r-ida" type="time" style={{ ...s.input, marginTop: 4 }} value={form.horario_ida} onChange={e => setForm(f => ({ ...f, horario_ida: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={s.label} htmlFor="r-vuelta">Horario vuelta</label>
+                  <input id="r-vuelta" type="time" style={{ ...s.input, marginTop: 4 }} value={form.horario_vuelta} onChange={e => setForm(f => ({ ...f, horario_vuelta: e.target.value }))} />
+                </div>
+              </div>
+              <label style={s.label} htmlFor="r-cap">Capacidad (n° alumnos)</label>
+              <input id="r-cap" type="number" min="1" max="50" style={s.input} value={form.capacidad} onChange={e => setForm(f => ({ ...f, capacidad: e.target.value }))} />
+              <div style={s.modalBtns}>
+                <button type="button" style={s.btnSecundario} onClick={cerrar}>Cancelar</button>
+                <button type="submit" style={s.btnPrimario}>{editId ? 'Guardar cambios' : 'Agregar ruta'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Menú ─────────────────────────────────────────────────────────────────────
 const MENU = [
   { id: 'apoderados', icon: '👨‍👩‍👧', label: 'Apoderados' },
   { id: 'alumnos',    icon: '🎒',     label: 'Alumnos' },
   { id: 'cobros',     icon: '💰',     label: 'Cobros' },
+  { id: 'rutas',      icon: '🗺️',     label: 'Rutas' },
 ]
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -482,6 +680,7 @@ function Dashboard({ sesion, onLogout }) {
           {seccion === 'apoderados' && <Apoderados />}
           {seccion === 'alumnos'    && <Alumnos />}
           {seccion === 'cobros'     && <Cobros />}
+          {seccion === 'rutas'      && <Rutas />}
         </div>
       </main>
     </div>
