@@ -334,8 +334,8 @@ function Cobros() {
     cargar()
   }
 
-  const totalMes      = lista.reduce((acc, c) => acc + Number(c.monto), 0)
-  const totalPagado   = lista.filter(c => c.pagado).reduce((acc, c) => acc + Number(c.monto), 0)
+  const totalMes       = lista.reduce((acc, c) => acc + Number(c.monto), 0)
+  const totalPagado    = lista.filter(c => c.pagado).reduce((acc, c) => acc + Number(c.monto), 0)
   const totalPendiente = totalMes - totalPagado
 
   return (
@@ -466,8 +466,8 @@ function Rutas() {
   }
 
   const linkRegistro = token
-  ? `${process.env.REACT_APP_URL || window.location.origin}/registro/${token}`
-  : null
+    ? `${process.env.REACT_APP_URL || window.location.origin}/registro/${token}`
+    : null
 
   const copiarLink = () => {
     if (!linkRegistro) return
@@ -517,7 +517,6 @@ function Rutas() {
         <button style={s.btnPrimario} onClick={abrirNuevo}>+ Nueva ruta</button>
       </div>
 
-      {/* Panel QR / Link de registro */}
       <div style={{ background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: 20, marginBottom: 24 }}>
         <p style={{ fontWeight: 600, marginBottom: 8 }}>🔗 Link de registro para apoderados</p>
         {token ? (
@@ -552,7 +551,6 @@ function Rutas() {
         )}
       </div>
 
-      {/* Lista de rutas */}
       {cargando ? (
         <div style={s.skeletonWrap} aria-busy="true">
           {[1, 2].map(i => (
@@ -593,7 +591,6 @@ function Rutas() {
         </div>
       )}
 
-      {/* Modal */}
       {modal && (
         <div style={s.modalFondo} role="dialog" aria-modal="true" aria-label={editId ? 'Editar ruta' : 'Nueva ruta'} onClick={e => { if (e.target === e.currentTarget) cerrar() }}>
           <div style={s.modalCard}>
@@ -630,13 +627,13 @@ function Rutas() {
 // ─── Asistencia ───────────────────────────────────────────────────────────────
 function Asistencia() {
   const hoy = new Date().toISOString().split('T')[0]
-  const [fecha, setFecha]       = useState(hoy)
-  const [tipo, setTipo]         = useState('ida')
-  const [alumnos, setAlumnos]   = useState([])
-  const [asistencia, setAsist]  = useState({})
-  const [cargando, setCargando] = useState(true)
+  const [fecha, setFecha]         = useState(hoy)
+  const [tipo, setTipo]           = useState('ida')
+  const [alumnos, setAlumnos]     = useState([])
+  const [asistencia, setAsist]    = useState({})
+  const [cargando, setCargando]   = useState(true)
   const [guardando, setGuardando] = useState(false)
-  const [msg, setMsg]           = useState('')
+  const [msg, setMsg]             = useState('')
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -654,7 +651,7 @@ function Asistencia() {
 
   useEffect(() => { cargar() }, [cargar])
 
-  const toggle = (id) => setAsist(prev => ({ ...prev, [id]: prev[id] === false ? true : (prev[id] === true ? false : true) }))
+  const toggle = (id) => setAsist(prev => ({ ...prev, [id]: prev[id] === false ? true : false }))
 
   const guardarAsistencia = async () => {
     setGuardando(true); setMsg('')
@@ -667,7 +664,7 @@ function Asistencia() {
       presente: asistencia[al.id] !== false,
     }))
     const { error } = await supabase.from('asistencia').upsert(registros, { onConflict: 'alumno_id,fecha,tipo' })
-    if (error) { setMsg('Error al guardar'); } else { setMsg('✅ Asistencia guardada') }
+    if (error) { setMsg('Error al guardar') } else { setMsg('✅ Asistencia guardada') }
     setGuardando(false)
     setTimeout(() => setMsg(''), 3000)
   }
@@ -755,13 +752,13 @@ const AVISOS_RAPIDOS = [
 ]
 
 function Avisos() {
-  const [rutas, setRutas]       = useState([])
-  const [lista, setLista]       = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [rutaId, setRutaId]     = useState('')
-  const [mensaje, setMensaje]   = useState('')
-  const [enviando, setEnviando] = useState(false)
-  const [msg, setMsg]           = useState('')
+  const [rutas, setRutas]         = useState([])
+  const [lista, setLista]         = useState([])
+  const [cargando, setCargando]   = useState(true)
+  const [rutaId, setRutaId]       = useState('')
+  const [mensaje, setMensaje]     = useState('')
+  const [enviando, setEnviando]   = useState(false)
+  const [msg, setMsg]             = useState('')
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -810,7 +807,8 @@ function Avisos() {
             <button
               key={i}
               onClick={() => setMensaje(a.texto)}
-              style={{ padding: '8px 14px', borderRadius: 20, border: '1.5px solid #dde4ef', background: mensaje === a.texto ? '#eff6ff' : '#f8fafc',
+              style={{ padding: '8px 14px', borderRadius: 20, border: '1.5px solid #dde4ef',
+                background: mensaje === a.texto ? '#eff6ff' : '#f8fafc',
                 color: '#374151', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}
             >
               {a.emoji} {a.texto}
@@ -875,44 +873,101 @@ const MENU = [
 ]
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
+// El sidebar es fijo en desktop (≥768px) y drawer en mobile.
+// El botón de logout aparece tanto en el sidebar como en la topbar mobile.
+const SIDEBAR_W = 240
+
 function Dashboard({ sesion, onLogout }) {
-  const [seccion, setSeccion] = useState('apoderados')
-  const [menuAbierto, setMenuAbierto] = useState(false)
+  const [seccion, setSeccion]       = useState('apoderados')
+  const [drawerAbierto, setDrawer]  = useState(false)
+  // Detectar ancho para mostrar/ocultar sidebar fijo
+  const [esDesktop, setEsDesktop]   = useState(window.innerWidth >= 768)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const handler = (e) => { setEsDesktop(e.matches); if (e.matches) setDrawer(false) }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   const item = MENU.find(m => m.id === seccion)
 
-  return (
-    <div style={s.app}>
-      {menuAbierto && <div style={s.overlay} onClick={() => setMenuAbierto(false)} aria-hidden="true" />}
-      <nav style={{ ...s.sidebar, left: menuAbierto ? 0 : -260 }} aria-label="Menú principal">
-        <div style={s.sideHeader}>
-          <span style={s.sideLogo}>🚌</span>
-          <div>
-            <div style={s.sideNombre}>Furcole</div>
-            <div style={s.sideUser}>{sesion.user.email}</div>
-          </div>
+  const Sidebar = () => (
+    <nav
+      style={{
+        width: SIDEBAR_W, minWidth: SIDEBAR_W, background: '#0f1f3d',
+        display: 'flex', flexDirection: 'column',
+        padding: '24px 0 16px', height: '100vh',
+        ...(esDesktop
+          ? { position: 'sticky', top: 0, flexShrink: 0 }
+          : { position: 'fixed', top: 0, left: drawerAbierto ? 0 : -SIDEBAR_W - 10,
+              zIndex: 200, transition: 'left .25s', boxShadow: drawerAbierto ? '4px 0 24px rgba(0,0,0,.3)' : 'none' })
+      }}
+      aria-label="Menú principal"
+    >
+      <div style={s.sideHeader}>
+        <span style={s.sideLogo}>🚌</span>
+        <div>
+          <div style={s.sideNombre}>Furcole</div>
+          <div style={s.sideUser}>{sesion.user.email}</div>
         </div>
-        <div style={s.nav}>
-          {MENU.map(m => (
-            <button
-              key={m.id}
-              style={{ ...s.navBtn, ...(seccion === m.id ? s.navActivo : {}) }}
-              onClick={() => { setSeccion(m.id); setMenuAbierto(false) }}
-              aria-current={seccion === m.id ? 'page' : undefined}
-            >
-              <span style={s.navIcon} aria-hidden="true">{m.icon}</span>
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <button style={s.logoutBtn} onClick={onLogout} aria-label="Cerrar sesión">🚪 Cerrar sesión</button>
-      </nav>
+      </div>
+      <div style={s.nav}>
+        {MENU.map(m => (
+          <button
+            key={m.id}
+            style={{ ...s.navBtn, ...(seccion === m.id ? s.navActivo : {}) }}
+            onClick={() => { setSeccion(m.id); setDrawer(false) }}
+            aria-current={seccion === m.id ? 'page' : undefined}
+          >
+            <span style={s.navIcon} aria-hidden="true">{m.icon}</span>
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <button style={s.logoutBtn} onClick={onLogout} aria-label="Cerrar sesión">
+        🚪 Cerrar sesión
+      </button>
+    </nav>
+  )
 
-      <div style={s.main}>
+  return (
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui,sans-serif', background: '#f0f4f9', overflow: 'hidden' }}>
+
+      {/* Overlay solo en mobile cuando drawer abierto */}
+      {!esDesktop && drawerAbierto && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 199 }}
+          onClick={() => setDrawer(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <Sidebar />
+
+      {/* Contenido principal */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
         <header style={s.topbar}>
-          <button style={s.hamburger} onClick={() => setMenuAbierto(o => !o)} aria-label="Abrir menú" aria-expanded={menuAbierto}>☰</button>
-          <span style={s.topTitulo}>{item?.icon} {item?.label}</span>
+          {/* Hamburger solo en mobile */}
+          {!esDesktop && (
+            <button
+              style={s.hamburger}
+              onClick={() => setDrawer(o => !o)}
+              aria-label="Abrir menú"
+              aria-expanded={drawerAbierto}
+            >☰</button>
+          )}
+          <span style={{ ...s.topTitulo, flex: 1 }}>{item?.icon} {item?.label}</span>
+          {/* Logout siempre visible en topbar */}
+          <button
+            onClick={onLogout}
+            style={{ background: 'none', border: '1px solid #dde4ef', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+            aria-label="Cerrar sesión"
+          >
+            🚪 <span style={{ display: esDesktop ? 'inline' : 'none' }}>Salir</span>
+          </button>
         </header>
-        <div style={s.contenido}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           {seccion === 'apoderados' && <Apoderados />}
           {seccion === 'alumnos'    && <Alumnos />}
           {seccion === 'cobros'     && <Cobros />}
@@ -925,18 +980,126 @@ function Dashboard({ sesion, onLogout }) {
   )
 }
 
+// ─── Rate limiting login (cliente) ───────────────────────────────────────────
+// Clave en localStorage: furcole_login_intentos
+// Estructura: { count: number, bloqueadoHasta: number | null }
+const MAX_INTENTOS   = 5
+const BLOQUEO_MS     = 15 * 60 * 1000  // 15 minutos
+
+function leerIntentos() {
+  try {
+    const raw = localStorage.getItem('furcole_login_intentos')
+    return raw ? JSON.parse(raw) : { count: 0, bloqueadoHasta: null }
+  } catch { return { count: 0, bloqueadoHasta: null } }
+}
+
+function guardarIntentos(data) {
+  try { localStorage.setItem('furcole_login_intentos', JSON.stringify(data)) } catch {}
+}
+
+function resetIntentos() {
+  try { localStorage.removeItem('furcole_login_intentos') } catch {}
+}
+
 // ─── Login ────────────────────────────────────────────────────────────────────
-function Login() {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [cargando, setCargando] = useState(false)
+function Login({ vistaInicial = 'login' }) {
+  const [vista, setVista]           = useState(vistaInicial) // 'login' | 'recuperar' | 'recuperar_ok'
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [error, setError]           = useState('')
+  const [msg, setMsg]               = useState('')
+  const [cargando, setCargando]     = useState(false)
+  const [bloqueado, setBloqueado]   = useState(false)
+  const [segundos, setSegundos]     = useState(0)
+
+  // Verificar bloqueo al montar
+  useEffect(() => {
+    const { bloqueadoHasta } = leerIntentos()
+    if (bloqueadoHasta && Date.now() < bloqueadoHasta) {
+      setBloqueado(true)
+      setSegundos(Math.ceil((bloqueadoHasta - Date.now()) / 1000))
+    }
+  }, [])
+
+  // Cuenta regresiva
+  useEffect(() => {
+    if (!bloqueado) return
+    const t = setInterval(() => {
+      const { bloqueadoHasta } = leerIntentos()
+      const restante = bloqueadoHasta ? Math.ceil((bloqueadoHasta - Date.now()) / 1000) : 0
+      if (restante <= 0) {
+        resetIntentos()
+        setBloqueado(false)
+        setSegundos(0)
+        setError('')
+      } else {
+        setSegundos(restante)
+      }
+    }, 1000)
+    return () => clearInterval(t)
+  }, [bloqueado])
+
+  const sanitizar = (str) => str.trim().slice(0, 254)
 
   const handleLogin = async (e) => {
-    e.preventDefault(); setCargando(true); setError('')
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
-    if (err) setError('Email o contraseña incorrectos')
+    e.preventDefault()
+    setError('')
+
+    // Verificar bloqueo
+    const intentos = leerIntentos()
+    if (intentos.bloqueadoHasta && Date.now() < intentos.bloqueadoHasta) {
+      setBloqueado(true)
+      setSegundos(Math.ceil((intentos.bloqueadoHasta - Date.now()) / 1000))
+      return
+    }
+
+    const emailLimpio    = sanitizar(email)
+    const passwordLimpio = sanitizar(password)
+
+    if (!emailLimpio || !passwordLimpio) { setError('Completa todos los campos'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio)) { setError('Ingresa un email válido'); return }
+    if (passwordLimpio.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
+
+    setCargando(true)
+    const { error: err } = await supabase.auth.signInWithPassword({ email: emailLimpio, password: passwordLimpio })
     setCargando(false)
+
+    if (err) {
+      const nuevoCount = intentos.count + 1
+      if (nuevoCount >= MAX_INTENTOS) {
+        const bloqueadoHasta = Date.now() + BLOQUEO_MS
+        guardarIntentos({ count: nuevoCount, bloqueadoHasta })
+        setBloqueado(true)
+        setSegundos(Math.ceil(BLOQUEO_MS / 1000))
+        setError(`Demasiados intentos fallidos. Espera 15 minutos.`)
+      } else {
+        guardarIntentos({ count: nuevoCount, bloqueadoHasta: null })
+        const restantes = MAX_INTENTOS - nuevoCount
+        setError(`Email o contraseña incorrectos. ${restantes} intento${restantes !== 1 ? 's' : ''} restante${restantes !== 1 ? 's' : ''}.`)
+      }
+    } else {
+      resetIntentos()
+    }
+  }
+
+  const handleRecuperar = async (e) => {
+    e.preventDefault()
+    setError('')
+    const emailLimpio = sanitizar(email)
+    if (!emailLimpio || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio)) {
+      setError('Ingresa un email válido'); return
+    }
+    setCargando(true)
+    const redirectTo = `${process.env.REACT_APP_URL || window.location.origin}/actualizar-password`
+    await supabase.auth.resetPasswordForEmail(emailLimpio, { redirectTo })
+    setCargando(false)
+    setVista('recuperar_ok')
+  }
+
+  const formatSegundos = (s) => {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return `${m}:${String(sec).padStart(2, '0')}`
   }
 
   return (
@@ -945,13 +1108,151 @@ function Login() {
         <div style={s.logo} aria-hidden="true">🚌</div>
         <h1 style={s.titulo}>Furcole</h1>
         <p style={s.subtitulo}>Gestión de transporte escolar</p>
-        <form onSubmit={handleLogin} style={s.form} noValidate>
-          <label style={s.labelLogin} htmlFor="login-email">Correo electrónico</label>
-          <input id="login-email" style={s.input} type="email" placeholder="correo@ejemplo.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
-          <label style={s.labelLogin} htmlFor="login-pass">Contraseña</label>
-          <input id="login-pass" style={s.input} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+
+        {vista === 'login' && (
+          <form onSubmit={handleLogin} style={s.form} noValidate>
+            <label style={s.labelLogin} htmlFor="login-email">Correo electrónico</label>
+            <input
+              id="login-email" style={s.input} type="email"
+              placeholder="correo@ejemplo.com" value={email}
+              onChange={e => setEmail(e.target.value)}
+              required autoComplete="email" maxLength={254}
+              disabled={bloqueado || cargando}
+              aria-describedby={error ? 'login-error' : undefined}
+            />
+            <label style={s.labelLogin} htmlFor="login-pass">Contraseña</label>
+            <input
+              id="login-pass" style={s.input} type="password"
+              placeholder="••••••••" value={password}
+              onChange={e => setPassword(e.target.value)}
+              required autoComplete="current-password" maxLength={128}
+              disabled={bloqueado || cargando}
+            />
+            {bloqueado && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#dc2626', textAlign: 'center' }} role="alert">
+                ⛔ Cuenta bloqueada. Intenta en {formatSegundos(segundos)}
+              </div>
+            )}
+            {error && !bloqueado && <p id="login-error" style={s.errorMsg} role="alert">{error}</p>}
+            <button style={s.btn} type="submit" disabled={cargando || bloqueado}>
+              {cargando ? 'Ingresando…' : 'Ingresar'}
+            </button>
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', marginTop: 4, textDecoration: 'underline' }}
+              onClick={() => { setVista('recuperar'); setError('') }}
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </form>
+        )}
+
+        {vista === 'recuperar' && (
+          <form onSubmit={handleRecuperar} style={s.form} noValidate>
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 4, textAlign: 'left' }}>
+              Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
+            </p>
+            <label style={s.labelLogin} htmlFor="rec-email">Correo electrónico</label>
+            <input
+              id="rec-email" style={s.input} type="email"
+              placeholder="correo@ejemplo.com" value={email}
+              onChange={e => setEmail(e.target.value)}
+              required autoComplete="email" maxLength={254} autoFocus
+            />
+            {error && <p style={s.errorMsg} role="alert">{error}</p>}
+            <button style={s.btn} type="submit" disabled={cargando}>
+              {cargando ? 'Enviando…' : 'Enviar enlace'}
+            </button>
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', marginTop: 4, textDecoration: 'underline' }}
+              onClick={() => { setVista('login'); setError('') }}
+            >
+              ← Volver al inicio de sesión
+            </button>
+          </form>
+        )}
+
+        {vista === 'recuperar_ok' && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
+            <p style={{ fontSize: 14, color: '#374151', marginBottom: 16 }}>
+              Si el email está registrado, recibirás un enlace para restablecer tu contraseña.
+            </p>
+            <button
+              style={s.btn}
+              onClick={() => { setVista('login'); setMsg('') }}
+            >
+              Volver al inicio de sesión
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Actualizar Contraseña (Sprint 6) ─────────────────────────────────────────
+function ActualizarPassword() {
+  const [password, setPassword]       = useState('')
+  const [confirmar, setConfirmar]     = useState('')
+  const [error, setError]             = useState('')
+  const [msg, setMsg]                 = useState('')
+  const [guardando, setGuardando]     = useState(false)
+  const [listo, setListo]             = useState(false)
+
+  const guardar = async (e) => {
+    e.preventDefault()
+    setError('')
+    if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres'); return }
+    if (password !== confirmar) { setError('Las contraseñas no coinciden'); return }
+    setGuardando(true)
+    const { error: err } = await supabase.auth.updateUser({ password })
+    setGuardando(false)
+    if (err) { setError('No se pudo actualizar. El enlace puede haber expirado.') }
+    else { setListo(true) }
+  }
+
+  if (listo) return (
+    <div style={s.fondo}>
+      <div style={s.card} role="main">
+        <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+        <h1 style={s.titulo}>Contraseña actualizada</h1>
+        <p style={{ color: '#64748b', fontSize: 14, margin: '8px 0 24px' }}>
+          Ya puedes iniciar sesión con tu nueva contraseña.
+        </p>
+        <button style={s.btn} onClick={() => window.location.href = '/'}>Ir al inicio de sesión</button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={s.fondo}>
+      <div style={s.card} role="main">
+        <div style={s.logo} aria-hidden="true">🔐</div>
+        <h1 style={{ ...s.titulo, fontSize: 22 }}>Nueva contraseña</h1>
+        <p style={s.subtitulo}>Elige una contraseña segura</p>
+        <form onSubmit={guardar} style={s.form} noValidate>
+          <label style={s.labelLogin} htmlFor="np-pass">Nueva contraseña</label>
+          <input
+            id="np-pass" style={s.input} type="password"
+            placeholder="Mínimo 8 caracteres" value={password}
+            onChange={e => setPassword(e.target.value)}
+            required autoFocus minLength={8} maxLength={128}
+            autoComplete="new-password"
+          />
+          <label style={s.labelLogin} htmlFor="np-confirm">Confirmar contraseña</label>
+          <input
+            id="np-confirm" style={s.input} type="password"
+            placeholder="Repite la contraseña" value={confirmar}
+            onChange={e => setConfirmar(e.target.value)}
+            required minLength={8} maxLength={128}
+            autoComplete="new-password"
+          />
           {error && <p style={s.errorMsg} role="alert">{error}</p>}
-          <button style={s.btn} type="submit" disabled={cargando}>{cargando ? 'Ingresando…' : 'Ingresar'}</button>
+          <button style={s.btn} type="submit" disabled={guardando}>
+            {guardando ? 'Guardando…' : 'Actualizar contraseña'}
+          </button>
         </form>
       </div>
     </div>
@@ -962,19 +1263,26 @@ function Login() {
 export default function App() {
   const [sesion, setSesion]     = useState(null)
   const [cargando, setCargando] = useState(true)
+  const [ruta, setRuta]         = useState(window.location.pathname)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSesion(session); setCargando(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setSesion(session))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSesion(session)
+    })
     return () => subscription.unsubscribe()
   }, [])
 
   const handleLogout = async () => { await supabase.auth.signOut() }
 
   if (cargando) return <div style={s.centro} aria-busy="true"><Skeleton w={200} h={20} /></div>
-  if (!sesion)  return <Login />
+
+  // Ruta pública: actualizar contraseña
+  if (ruta.startsWith('/actualizar-password')) return <ActualizarPassword />
+
+  if (!sesion) return <Login />
   return <Dashboard sesion={sesion} onLogout={handleLogout} />
 }
 
@@ -986,7 +1294,6 @@ const s = {
   titulo:        { fontSize: 26, fontWeight: 700, color: '#0f1f3d', margin: '0 0 4px' },
   subtitulo:     { color: '#64748b', margin: '0 0 28px', fontSize: 14 },
   centro:        { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'system-ui' },
-  app:           { display: 'flex', height: '100vh', fontFamily: 'system-ui,sans-serif', background: '#f0f4f9' },
   sidebar:       { position: 'fixed', top: 0, left: 0, height: '100vh', width: 240, background: '#0f1f3d', display: 'flex', flexDirection: 'column', zIndex: 100, transition: 'left .25s', padding: '24px 0 16px' },
   sideHeader:    { display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 24px', borderBottom: '1px solid #1e3050' },
   sideLogo:      { fontSize: 28 },
