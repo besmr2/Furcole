@@ -627,33 +627,271 @@ function Rutas() {
   )
 }
 
+// ─── Asistencia ───────────────────────────────────────────────────────────────
+function Asistencia() {
+  const hoy = new Date().toISOString().split('T')[0]
+  const [fecha, setFecha]       = useState(hoy)
+  const [tipo, setTipo]         = useState('ida')
+  const [alumnos, setAlumnos]   = useState([])
+  const [asistencia, setAsist]  = useState({})
+  const [cargando, setCargando] = useState(true)
+  const [guardando, setGuardando] = useState(false)
+  const [msg, setMsg]           = useState('')
+
+  const cargar = useCallback(async () => {
+    setCargando(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const [{ data: als }, { data: asist }] = await Promise.all([
+      supabase.from('alumnos').select('id, nombre, apoderados(nombre)').eq('user_id', user.id).eq('activo', true).order('nombre'),
+      supabase.from('asistencia').select('alumno_id, presente').eq('fecha', fecha).eq('tipo', tipo).eq('user_id', user.id),
+    ])
+    setAlumnos(als || [])
+    const map = {}
+    ;(asist || []).forEach(a => { map[a.alumno_id] = a.presente })
+    setAsist(map)
+    setCargando(false)
+  }, [fecha, tipo])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const toggle = (id) => setAsist(prev => ({ ...prev, [id]: prev[id] === false ? true : (prev[id] === true ? false : true) }))
+
+  const guardarAsistencia = async () => {
+    setGuardando(true); setMsg('')
+    const { data: { user } } = await supabase.auth.getUser()
+    const registros = alumnos.map(al => ({
+      user_id: user.id,
+      alumno_id: al.id,
+      fecha,
+      tipo,
+      presente: asistencia[al.id] !== false,
+    }))
+    const { error } = await supabase.from('asistencia').upsert(registros, { onConflict: 'alumno_id,fecha,tipo' })
+    if (error) { setMsg('Error al guardar'); } else { setMsg('✅ Asistencia guardada') }
+    setGuardando(false)
+    setTimeout(() => setMsg(''), 3000)
+  }
+
+  return (
+    <div style={s.vista}>
+      <div style={s.vistaHeader}>
+        <h2 style={s.vtitulo}>Asistencia</h2>
+        <button style={s.btnPrimario} onClick={guardarAsistencia} disabled={guardando || alumnos.length === 0}>
+          {guardando ? 'Guardando…' : '💾 Guardar'}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input
+          type="date"
+          value={fecha}
+          max={hoy}
+          onChange={e => setFecha(e.target.value)}
+          style={{ ...s.input, padding: '8px 12px', fontSize: 13 }}
+          aria-label="Fecha de asistencia"
+        />
+        <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1.5px solid #dde4ef' }}>
+          {['ida', 'vuelta'].map(t => (
+            <button
+              key={t}
+              onClick={() => setTipo(t)}
+              style={{ padding: '8px 18px', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                background: tipo === t ? '#2563eb' : '#fff',
+                color: tipo === t ? '#fff' : '#374151' }}
+              aria-pressed={tipo === t}
+            >
+              {t === 'ida' ? '🌅 Ida' : '🌆 Vuelta'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {msg && <p style={{ ...s.errorMsg, color: msg.startsWith('✅') ? '#16a34a' : '#dc2626', marginBottom: 12 }} role="status">{msg}</p>}
+
+      {cargando ? (
+        <div style={s.skeletonWrap} aria-busy="true">
+          {[1,2,3].map(i => <div key={i} style={s.skeletonFila}><Skeleton w={160} h={16} /><Skeleton w={60} h={28} r={8} /></div>)}
+        </div>
+      ) : alumnos.length === 0 ? (
+        <div style={s.vacio} role="status">
+          <span style={{ fontSize: 40 }}>🎒</span>
+          <p>No hay alumnos activos registrados.</p>
+        </div>
+      ) : (
+        <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+          {alumnos.map((al, i) => {
+            const presente = asistencia[al.id] !== false
+            return (
+              <div key={al.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: i < alumnos.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: '#0f1f3d' }}>{al.nombre}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>{al.apoderados?.nombre || '—'}</div>
+                </div>
+                <button
+                  onClick={() => toggle(al.id)}
+                  style={{ padding: '7px 18px', borderRadius: 20, border: 'none', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                    background: presente ? '#dcfce7' : '#fee2e2',
+                    color: presente ? '#16a34a' : '#dc2626' }}
+                  aria-pressed={presente}
+                  aria-label={presente ? `${al.nombre} presente` : `${al.nombre} ausente`}
+                >
+                  {presente ? '✓ Presente' : '✗ Ausente'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Avisos ───────────────────────────────────────────────────────────────────
+const AVISOS_RAPIDOS = [
+  { emoji: '🚗', texto: 'En camino, llegaré pronto.' },
+  { emoji: '⏰', texto: 'Llegaré con retraso de aprox. 15 min.' },
+  { emoji: '🚧', texto: 'Hay tráfico. Aviso cuando salga.' },
+  { emoji: '✅', texto: 'Ya salí, voy en camino.' },
+]
+
+function Avisos() {
+  const [rutas, setRutas]       = useState([])
+  const [lista, setLista]       = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [rutaId, setRutaId]     = useState('')
+  const [mensaje, setMensaje]   = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [msg, setMsg]           = useState('')
+
+  const cargar = useCallback(async () => {
+    setCargando(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const [{ data: rs }, { data: av }] = await Promise.all([
+      supabase.from('rutas').select('id, nombre').eq('user_id', user.id).eq('activo', true).order('nombre'),
+      supabase.from('avisos').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
+    ])
+    setRutas(rs || [])
+    setLista(av || [])
+    setCargando(false)
+  }, [])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const enviar = async () => {
+    if (!mensaje.trim()) return
+    setEnviando(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('avisos').insert({
+      user_id: user.id,
+      ruta_id: rutaId || null,
+      mensaje: mensaje.trim(),
+    })
+    if (error) { setMsg('Error al enviar aviso') } else { setMsg('✅ Aviso enviado'); setMensaje('') }
+    setEnviando(false)
+    setTimeout(() => setMsg(''), 3000)
+    cargar()
+  }
+
+  const eliminar = async (id) => {
+    await supabase.from('avisos').delete().eq('id', id)
+    cargar()
+  }
+
+  const formatFecha = (iso) => new Date(iso).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <div style={s.vista}>
+      <h2 style={{ ...s.vtitulo, marginBottom: 20 }}>Avisos</h2>
+
+      <div style={{ background: '#fff', borderRadius: 12, padding: 20, marginBottom: 24, boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Avisos rápidos</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {AVISOS_RAPIDOS.map((a, i) => (
+            <button
+              key={i}
+              onClick={() => setMensaje(a.texto)}
+              style={{ padding: '8px 14px', borderRadius: 20, border: '1.5px solid #dde4ef', background: mensaje === a.texto ? '#eff6ff' : '#f8fafc',
+                color: '#374151', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}
+            >
+              {a.emoji} {a.texto}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ ...s.label, marginBottom: 6, display: 'block' }} htmlFor="aviso-ruta">Ruta (opcional)</label>
+          <select id="aviso-ruta" style={{ ...s.input, marginBottom: 12 }} value={rutaId} onChange={e => setRutaId(e.target.value)}>
+            <option value="">Todas las rutas</option>
+            {rutas.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+          </select>
+          <label style={{ ...s.label, marginBottom: 6, display: 'block' }} htmlFor="aviso-msg">Mensaje</label>
+          <textarea
+            id="aviso-msg"
+            style={{ ...s.input, width: '100%', minHeight: 80, resize: 'vertical', boxSizing: 'border-box' }}
+            value={mensaje}
+            onChange={e => setMensaje(e.target.value)}
+            placeholder="Escribe un aviso para los apoderados…"
+            maxLength={300}
+          />
+        </div>
+
+        {msg && <p style={{ ...s.errorMsg, color: msg.startsWith('✅') ? '#16a34a' : '#dc2626', marginBottom: 8 }} role="status">{msg}</p>}
+
+        <button style={s.btnPrimario} onClick={enviar} disabled={enviando || !mensaje.trim()}>
+          {enviando ? 'Enviando…' : '📢 Enviar aviso'}
+        </button>
+      </div>
+
+      <p style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Historial de avisos</p>
+      {cargando ? (
+        <div style={s.skeletonWrap}>{[1,2].map(i => <div key={i} style={s.skeletonFila}><Skeleton w="80%" h={14} /></div>)}</div>
+      ) : lista.length === 0 ? (
+        <div style={s.vacio}><span style={{ fontSize: 36 }}>📭</span><p>No hay avisos enviados aún.</p></div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {lista.map(av => (
+            <div key={av.id} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <p style={{ fontSize: 14, color: '#0f1f3d', margin: '0 0 4px', fontWeight: 500 }}>{av.mensaje}</p>
+                <span style={{ fontSize: 12, color: '#94a3b8' }}>{formatFecha(av.created_at)}</span>
+              </div>
+              <button onClick={() => eliminar(av.id)} style={s.btnIcono} aria-label="Eliminar aviso">🗑️</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Menú ─────────────────────────────────────────────────────────────────────
 const MENU = [
   { id: 'apoderados', icon: '👨‍👩‍👧', label: 'Apoderados' },
   { id: 'alumnos',    icon: '🎒',     label: 'Alumnos' },
   { id: 'cobros',     icon: '💰',     label: 'Cobros' },
   { id: 'rutas',      icon: '🗺️',     label: 'Rutas' },
+  { id: 'asistencia', icon: '📋',     label: 'Asistencia' },
+  { id: 'avisos',     icon: '📢',     label: 'Avisos' },
 ]
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 function Dashboard({ sesion, onLogout }) {
-  const [seccion, setSeccion]         = useState('apoderados')
+  const [seccion, setSeccion] = useState('apoderados')
   const [menuAbierto, setMenuAbierto] = useState(false)
-  const nombre = sesion.user.email.split('@')[0]
-
-  const ancho = window.innerWidth
+  const item = MENU.find(m => m.id === seccion)
 
   return (
     <div style={s.app}>
-      <aside style={{ ...s.sidebar, left: ancho >= 768 ? 0 : (menuAbierto ? 0 : '-240px') }}>
+      {menuAbierto && <div style={s.overlay} onClick={() => setMenuAbierto(false)} aria-hidden="true" />}
+      <nav style={{ ...s.sidebar, left: menuAbierto ? 0 : -260 }} aria-label="Menú principal">
         <div style={s.sideHeader}>
           <span style={s.sideLogo}>🚌</span>
           <div>
             <div style={s.sideNombre}>Furcole</div>
-            <div style={s.sideUser}>{nombre}</div>
+            <div style={s.sideUser}>{sesion.user.email}</div>
           </div>
         </div>
-        <nav style={s.nav} aria-label="Navegación principal">
+        <div style={s.nav}>
           {MENU.map(m => (
             <button
               key={m.id}
@@ -665,24 +903,24 @@ function Dashboard({ sesion, onLogout }) {
               {m.label}
             </button>
           ))}
-        </nav>
-        <button style={s.logoutBtn} onClick={onLogout}>← Cerrar sesión</button>
-      </aside>
+        </div>
+        <button style={s.logoutBtn} onClick={onLogout} aria-label="Cerrar sesión">🚪 Cerrar sesión</button>
+      </nav>
 
-      {menuAbierto && <div style={s.overlay} onClick={() => setMenuAbierto(false)} aria-hidden="true" />}
-
-      <main style={{ ...s.main, marginLeft: ancho >= 768 ? 240 : 0 }}>
+      <div style={s.main}>
         <header style={s.topbar}>
-          <button style={s.hamburger} onClick={() => setMenuAbierto(!menuAbierto)} aria-label="Abrir menú" aria-expanded={menuAbierto}>☰</button>
-          <span style={s.topTitulo}>{MENU.find(m => m.id === seccion)?.label}</span>
+          <button style={s.hamburger} onClick={() => setMenuAbierto(o => !o)} aria-label="Abrir menú" aria-expanded={menuAbierto}>☰</button>
+          <span style={s.topTitulo}>{item?.icon} {item?.label}</span>
         </header>
         <div style={s.contenido}>
           {seccion === 'apoderados' && <Apoderados />}
           {seccion === 'alumnos'    && <Alumnos />}
           {seccion === 'cobros'     && <Cobros />}
           {seccion === 'rutas'      && <Rutas />}
+          {seccion === 'asistencia' && <Asistencia />}
+          {seccion === 'avisos'     && <Avisos />}
         </div>
-      </main>
+      </div>
     </div>
   )
 }
