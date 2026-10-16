@@ -1007,7 +1007,6 @@ function Login({ vistaInicial = 'login' }) {
   const [email, setEmail]           = useState('')
   const [password, setPassword]     = useState('')
   const [error, setError]           = useState('')
-  const [msg, setMsg]               = useState('')
   const [cargando, setCargando]     = useState(false)
   const [bloqueado, setBloqueado]   = useState(false)
   const [segundos, setSegundos]     = useState(0)
@@ -1197,7 +1196,6 @@ function ActualizarPassword() {
   const [password, setPassword]       = useState('')
   const [confirmar, setConfirmar]     = useState('')
   const [error, setError]             = useState('')
-  const [msg, setMsg]                 = useState('')
   const [guardando, setGuardando]     = useState(false)
   const [listo, setListo]             = useState(false)
 
@@ -1263,7 +1261,7 @@ function ActualizarPassword() {
 export default function App() {
   const [sesion, setSesion]     = useState(null)
   const [cargando, setCargando] = useState(true)
-  const [ruta, setRuta]         = useState(window.location.pathname)
+  const ruta                    = window.location.pathname
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
