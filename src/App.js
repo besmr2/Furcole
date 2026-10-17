@@ -285,6 +285,7 @@ function Cobros() {
   const [editando, setEditando]   = useState(null)   // { id, monto }
   const [montoEdit, setMontoEdit] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [pagandoFlow, setPagandoFlow] = useState(new Set())  // IDs en proceso Flow
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -350,6 +351,36 @@ function Cobros() {
     setGuardando(false)
     setEditando(null)
     cargar()
+  }
+
+  const cobrarFlow = async (cobro) => {
+    setPagandoFlow(prev => new Set([...prev, cobro.id]))
+    setMsg('')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { setMsg('Error: sesión no válida'); return }
+
+      const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || supabase.supabaseUrl
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/flow-crear-pago`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ cobro_id: cobro.id }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        setMsg(`Error Flow: ${data.error || 'sin respuesta'}`)
+        return
+      }
+      window.open(data.url, '_blank', 'noopener,noreferrer')
+    } catch (e) {
+      setMsg(`Error: ${e.message}`)
+    } finally {
+      setPagandoFlow(prev => { const s = new Set(prev); s.delete(cobro.id); return s })
+    }
   }
 
   const totalMes       = lista.reduce((acc, c) => acc + Number(c.monto), 0)
@@ -449,15 +480,16 @@ function Cobros() {
         </div>
       ) : (
         <div style={s.tabla} role="table" aria-label="Cobros del mes">
-          <div style={{ ...s.tablaHead, gridTemplateColumns: '1fr 1fr 130px 110px 44px' }} role="row">
+          <div style={{ ...s.tablaHead, gridTemplateColumns: '1fr 1fr 130px 110px 44px 44px' }} role="row">
             <span role="columnheader">Alumno</span>
             <span role="columnheader">Apoderado</span>
             <span role="columnheader">Monto</span>
             <span role="columnheader">Estado</span>
-            <span role="columnheader"></span>
+            <span role="columnheader" aria-label="Editar" />
+            <span role="columnheader" aria-label="Pagar con Flow" />
           </div>
           {lista.map(c => (
-            <div key={c.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 130px 110px 44px', opacity: c.pagado ? 0.9 : 1 }} role="row">
+            <div key={c.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 130px 110px 44px 44px', opacity: c.pagado ? 0.9 : 1 }} role="row">
               <span style={s.celNombre} role="cell">{c.alumnos?.nombre || '—'}</span>
               <span style={s.cel} role="cell">{c.alumnos?.apoderados?.nombre || '—'}</span>
               <span style={{ ...s.cel, fontWeight: 600 }} role="cell">${Number(c.monto).toLocaleString('es-CL')}</span>
@@ -478,6 +510,17 @@ function Cobros() {
                   aria-label={`Editar monto de ${c.alumnos?.nombre}`}
                   title="Editar monto"
                 >✏️</button>
+              </span>
+              <span role="cell">
+                {!c.pagado && (
+                  <button
+                    onClick={() => cobrarFlow(c)}
+                    disabled={pagandoFlow.has(c.id)}
+                    style={{ background: 'none', border: 'none', cursor: pagandoFlow.has(c.id) ? 'wait' : 'pointer', fontSize: 16, padding: '2px 4px', borderRadius: 6, color: '#2563eb', opacity: pagandoFlow.has(c.id) ? 0.5 : 1 }}
+                    aria-label={`Cobrar por Flow a ${c.alumnos?.nombre}`}
+                    title="Cobrar por Flow"
+                  >{pagandoFlow.has(c.id) ? '⏳' : '💳'}</button>
+                )}
               </span>
             </div>
           ))}
