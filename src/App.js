@@ -1331,7 +1331,7 @@ function Login({ vistaInicial = 'login' }) {
               aria-describedby={error ? 'login-error' : undefined}
             />
             <label style={s.labelLogin} htmlFor="login-pass">Contraseña</label>
-            <div style={{ position: 'relative', width: '100%' }}>
+            <div style={{ position: 'relative', width: '100%', display: 'block' }}>
               <input
                 id="login-pass" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
                 placeholder="••••••••" value={password}
@@ -1457,7 +1457,7 @@ function ActualizarPassword() {
         <p style={s.subtitulo}>Elige una contraseña segura</p>
         <form onSubmit={guardar} style={s.form} noValidate>
           <label style={s.labelLogin} htmlFor="np-pass">Nueva contraseña</label>
-          <div style={{ position: 'relative', width: '100%' }}>
+          <div style={{ position: 'relative', width: '100%', display: 'block' }}>
             <input
               id="np-pass" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
               placeholder="Mínimo 8 caracteres" value={password}
@@ -1478,7 +1478,7 @@ function ActualizarPassword() {
               )}</button>
           </div>
           <label style={s.labelLogin} htmlFor="np-confirm">Confirmar contraseña</label>
-          <div style={{ position: 'relative', width: '100%' }}>
+          <div style={{ position: 'relative', width: '100%', display: 'block' }}>
             <input
               id="np-confirm" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
               placeholder="Repite la contraseña" value={confirmar}
@@ -1573,7 +1573,7 @@ const s = {
   form:          { display: 'flex', flexDirection: 'column', gap: 10 },
   label:         { fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: -4 },
   labelLogin:    { fontSize: 13, fontWeight: 600, color: '#374151', textAlign: 'left', marginBottom: -4 },
-  input:         { padding: '11px 13px', borderRadius: 8, border: '1.5px solid #dde4ef', fontSize: 14, outline: 'none', fontFamily: 'system-ui', background: '#fff' },
+  input:         { padding: '11px 13px', borderRadius: 8, border: '1.5px solid #dde4ef', fontSize: 14, outline: 'none', fontFamily: 'system-ui', background: '#fff', width: '100%', boxSizing: 'border-box' },
   btn:           { padding: 13, borderRadius: 8, background: '#2563eb', color: '#fff', border: 'none', fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 4 },
   btnPrimario:   { padding: '9px 18px', borderRadius: 8, background: '#2563eb', color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
   btnSecundario: { padding: '9px 18px', borderRadius: 8, background: '#f1f5f9', color: '#374151', border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer' },
