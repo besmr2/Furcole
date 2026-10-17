@@ -1331,7 +1331,7 @@ function Login({ vistaInicial = 'login' }) {
               aria-describedby={error ? 'login-error' : undefined}
             />
             <label style={s.labelLogin} htmlFor="login-pass">Contraseña</label>
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
               <input
                 id="login-pass" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
                 placeholder="••••••••" value={password}
@@ -1345,7 +1345,11 @@ function Login({ vistaInicial = 'login' }) {
                 style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#64748b', padding: 0, lineHeight: 1 }}
                 aria-label={mostrarPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                 tabIndex={-1}
-              >{mostrarPass ? '🙈' : '👁️'}</button>
+              >{mostrarPass ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              )}</button>
             </div>
             {bloqueado && (
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#dc2626', textAlign: 'center' }} role="alert">
@@ -1453,7 +1457,7 @@ function ActualizarPassword() {
         <p style={s.subtitulo}>Elige una contraseña segura</p>
         <form onSubmit={guardar} style={s.form} noValidate>
           <label style={s.labelLogin} htmlFor="np-pass">Nueva contraseña</label>
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', width: '100%' }}>
             <input
               id="np-pass" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
               placeholder="Mínimo 8 caracteres" value={password}
@@ -1467,10 +1471,14 @@ function ActualizarPassword() {
               style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#64748b', padding: 0, lineHeight: 1 }}
               aria-label={mostrarPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               tabIndex={-1}
-            >{mostrarPass ? '🙈' : '👁️'}</button>
+            >{mostrarPass ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              )}</button>
           </div>
           <label style={s.labelLogin} htmlFor="np-confirm">Confirmar contraseña</label>
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', width: '100%' }}>
             <input
               id="np-confirm" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
               placeholder="Repite la contraseña" value={confirmar}
