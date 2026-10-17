@@ -1219,6 +1219,7 @@ function Login({ vistaInicial = 'login' }) {
   const [error, setError]           = useState('')
   const [cargando, setCargando]     = useState(false)
   const [bloqueado, setBloqueado]   = useState(false)
+  const [mostrarPass, setMostrarPass] = useState(false)
   const [segundos, setSegundos]     = useState(0)
 
   // Verificar bloqueo al montar
@@ -1330,13 +1331,22 @@ function Login({ vistaInicial = 'login' }) {
               aria-describedby={error ? 'login-error' : undefined}
             />
             <label style={s.labelLogin} htmlFor="login-pass">Contraseña</label>
-            <input
-              id="login-pass" style={s.input} type="password"
-              placeholder="••••••••" value={password}
-              onChange={e => setPassword(e.target.value)}
-              required autoComplete="current-password" maxLength={128}
-              disabled={bloqueado || cargando}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                id="login-pass" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
+                placeholder="••••••••" value={password}
+                onChange={e => setPassword(e.target.value)}
+                required autoComplete="current-password" maxLength={128}
+                disabled={bloqueado || cargando}
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarPass(v => !v)}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#64748b', padding: 0, lineHeight: 1 }}
+                aria-label={mostrarPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                tabIndex={-1}
+              >{mostrarPass ? '🙈' : '👁️'}</button>
+            </div>
             {bloqueado && (
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#dc2626', textAlign: 'center' }} role="alert">
                 ⛔ Cuenta bloqueada. Intenta en {formatSegundos(segundos)}
@@ -1408,6 +1418,7 @@ function ActualizarPassword() {
   const [error, setError]             = useState('')
   const [guardando, setGuardando]     = useState(false)
   const [listo, setListo]             = useState(false)
+  const [mostrarPass, setMostrarPass] = useState(false)
 
   const guardar = async (e) => {
     e.preventDefault()
@@ -1442,21 +1453,32 @@ function ActualizarPassword() {
         <p style={s.subtitulo}>Elige una contraseña segura</p>
         <form onSubmit={guardar} style={s.form} noValidate>
           <label style={s.labelLogin} htmlFor="np-pass">Nueva contraseña</label>
-          <input
-            id="np-pass" style={s.input} type="password"
-            placeholder="Mínimo 8 caracteres" value={password}
-            onChange={e => setPassword(e.target.value)}
-            required autoFocus minLength={8} maxLength={128}
-            autoComplete="new-password"
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              id="np-pass" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
+              placeholder="Mínimo 8 caracteres" value={password}
+              onChange={e => setPassword(e.target.value)}
+              required autoFocus minLength={8} maxLength={128}
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              onClick={() => setMostrarPass(v => !v)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#64748b', padding: 0, lineHeight: 1 }}
+              aria-label={mostrarPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              tabIndex={-1}
+            >{mostrarPass ? '🙈' : '👁️'}</button>
+          </div>
           <label style={s.labelLogin} htmlFor="np-confirm">Confirmar contraseña</label>
-          <input
-            id="np-confirm" style={s.input} type="password"
-            placeholder="Repite la contraseña" value={confirmar}
-            onChange={e => setConfirmar(e.target.value)}
-            required minLength={8} maxLength={128}
-            autoComplete="new-password"
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              id="np-confirm" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
+              placeholder="Repite la contraseña" value={confirmar}
+              onChange={e => setConfirmar(e.target.value)}
+              required minLength={8} maxLength={128}
+              autoComplete="new-password"
+            />
+          </div>
           {error && <p style={s.errorMsg} role="alert">{error}</p>}
           <button style={s.btn} type="submit" disabled={guardando}>
             {guardando ? 'Guardando…' : 'Actualizar contraseña'}
