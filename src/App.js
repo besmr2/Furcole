@@ -1477,7 +1477,11 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSesion(session); setCargando(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.replace('/actualizar-password')
+        return
+      }
       setSesion(session)
     })
     return () => subscription.unsubscribe()
