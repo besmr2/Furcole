@@ -1086,11 +1086,44 @@ const MENU = [
 // El botón de logout aparece tanto en el sidebar como en la topbar mobile.
 const SIDEBAR_W = 240
 
+function ModalSalir({ onConfirmar, onCancelar }) {
+  const [cuenta, setCuenta] = useState(30)
+  useEffect(() => {
+    if (cuenta <= 0) { onConfirmar(); return }
+    const t = setTimeout(() => setCuenta(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [cuenta, onConfirmar])
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: '32px 28px', maxWidth: 360, width: '90%', boxShadow: '0 8px 40px rgba(0,0,0,.18)', textAlign: 'center' }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🚪</div>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20, color: '#0f1f3d' }}>¿Deseas salir?</h2>
+        <p style={{ color: '#64748b', fontSize: 14, margin: '0 0 24px' }}>Tu sesión se cerrará. Deberás iniciar sesión nuevamente.</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <button
+            onClick={onCancelar}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '1px solid #dde4ef', background: '#f8fafc', color: '#374151', fontSize: 15, cursor: 'pointer', fontWeight: 500 }}
+          >Cancelar</button>
+          <button
+            onClick={onConfirmar}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: '#e53e3e', color: '#fff', fontSize: 15, cursor: 'pointer', fontWeight: 600 }}
+          >Confirmar ({cuenta}s)</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Dashboard({ sesion, onLogout }) {
   const [seccion, setSeccion]       = useState('home')
   const [drawerAbierto, setDrawer]  = useState(false)
+  const [modalSalir, setModalSalir] = useState(false)
   // Detectar ancho para mostrar/ocultar sidebar fijo
   const [esDesktop, setEsDesktop]   = useState(window.innerWidth >= 768)
+
+  const pedirSalir  = () => setModalSalir(true)
+  const cancelarSalir = () => setModalSalir(false)
+  const confirmarSalir = () => { setModalSalir(false); onLogout() }
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)')
@@ -1134,7 +1167,7 @@ function Dashboard({ sesion, onLogout }) {
           </button>
         ))}
       </div>
-      <button style={s.logoutBtn} onClick={onLogout} aria-label="Cerrar sesión">
+      <button style={s.logoutBtn} onClick={pedirSalir} aria-label="Cerrar sesión">
         🚪 Cerrar sesión
       </button>
     </nav>
@@ -1142,6 +1175,8 @@ function Dashboard({ sesion, onLogout }) {
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui,sans-serif', background: '#f0f4f9', overflow: 'hidden' }}>
+
+      {modalSalir && <ModalSalir onConfirmar={confirmarSalir} onCancelar={cancelarSalir} />}
 
       {/* Overlay solo en mobile cuando drawer abierto */}
       {!esDesktop && drawerAbierto && (
@@ -1169,7 +1204,7 @@ function Dashboard({ sesion, onLogout }) {
           <span style={{ ...s.topTitulo, flex: 1 }}>{item?.icon} {item?.label}</span>
           {/* Logout siempre visible en topbar */}
           <button
-            onClick={onLogout}
+            onClick={pedirSalir}
             style={{ background: 'none', border: '1px solid #dde4ef', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
             aria-label="Cerrar sesión"
           >
@@ -1422,7 +1457,8 @@ function ActualizarPassword() {
   const [error, setError]             = useState('')
   const [guardando, setGuardando]     = useState(false)
   const [listo, setListo]             = useState(false)
-  const [mostrarPass, setMostrarPass] = useState(false)
+  const [mostrarPass, setMostrarPass]           = useState(false)
+  const [mostrarConfirmar, setMostrarConfirmar] = useState(false)
 
   const guardar = async (e) => {
     e.preventDefault()
@@ -1480,12 +1516,23 @@ function ActualizarPassword() {
           <label style={s.labelLogin} htmlFor="np-confirm">Confirmar contraseña</label>
           <div style={{ position: 'relative', width: '100%', display: 'block' }}>
             <input
-              id="np-confirm" style={{ ...s.input, paddingRight: 40 }} type={mostrarPass ? 'text' : 'password'}
+              id="np-confirm" style={{ ...s.input, paddingRight: 40 }} type={mostrarConfirmar ? 'text' : 'password'}
               placeholder="Repite la contraseña" value={confirmar}
               onChange={e => setConfirmar(e.target.value)}
               required minLength={8} maxLength={128}
               autoComplete="new-password"
             />
+            <button
+              type="button"
+              onClick={() => setMostrarConfirmar(v => !v)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#64748b', padding: 0, lineHeight: 1 }}
+              aria-label={mostrarConfirmar ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              tabIndex={-1}
+            >{mostrarConfirmar ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              )}</button>
           </div>
           {error && <p style={s.errorMsg} role="alert">{error}</p>}
           <button style={s.btn} type="submit" disabled={guardando}>
