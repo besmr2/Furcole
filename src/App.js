@@ -1901,6 +1901,8 @@ function BandejaSolicitudes() {
   const [procesando, setProcesando] = useState(false)
   const [msgDetalle, setMsgDetalle] = useState(null) // { texto, ok }
   const [filtrando, setFiltrando]   = useState('pendiente') // 'pendiente'|'todas'
+  const [precioInput, setPrecioInput] = useState('')
+  const [notaInput, setNotaInput]     = useState('')
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -2117,10 +2119,7 @@ function BandejaSolicitudes() {
                 </div>
               )}
 
-              {esPendiente && (() => {
-                const [precioInput, setPrecioInput] = useState('')
-                const [notaInput, setNotaInput]     = useState('')
-                return (
+              {esPendiente && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>
@@ -2161,8 +2160,7 @@ function BandejaSolicitudes() {
                       </button>
                     </div>
                   </div>
-                )
-              })()}
+              )}
 
               {!esPendiente && (
                 <button onClick={() => setDetalle(null)}
