@@ -1506,7 +1506,8 @@ export default function App() {
                                   window.location.search.includes('type=recovery')
 
   useEffect(() => {
-    const tieneTokenEnHash = window.location.hash.includes('access_token=')
+    const hash = window.location.hash
+    const tieneTokenEnHash = hash.includes('access_token=')
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
@@ -1517,8 +1518,23 @@ export default function App() {
       setCargando(false)
     })
 
-    // Si hay token en hash, onAuthStateChange lo procesa solo — no llamar getSession antes
-    if (!tieneTokenEnHash) {
+    if (tieneTokenEnHash) {
+      // Parsear token del hash manualmente y establecer sesión
+      const params = new URLSearchParams(hash.replace('#', ''))
+      const access_token = params.get('access_token')
+      const refresh_token = params.get('refresh_token')
+      const type = params.get('type')
+      if (access_token && refresh_token) {
+        if (type === 'recovery') {
+          window.location.replace('/actualizar-password')
+        } else {
+          supabase.auth.setSession({ access_token, refresh_token }).then(({ data: { session } }) => {
+            setSesion(session)
+            setCargando(false)
+          })
+        }
+      }
+    } else {
       supabase.auth.getSession().then(({ data: { session } }) => {
         setSesion(session)
         setCargando(false)
