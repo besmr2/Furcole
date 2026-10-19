@@ -2,12 +2,46 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
 import { QRCodeCanvas as QRCode } from 'qrcode.react'
 
+// Inyecta Google Fonts (Inter + Sora) en el <head> si no está presente
+;(function injectFonts() {
+  if (typeof document === 'undefined') return
+  if (document.getElementById('furcole-fonts')) return
+  const link = document.createElement('link')
+  link.id = 'furcole-fonts'
+  link.rel = 'stylesheet'
+  link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700&display=swap'
+  document.head.appendChild(link)
+})()
+
+// ─── SVG Icons ───────────────────────────────────────────────────────────────
+const IC = {
+  home:       <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M3 7.5L9 2.25L15 7.5V15.75H11.25V11.25H6.75V15.75H3V7.5Z"/></svg>,
+  apoderados: <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="3"/><path d="M3 15.75c0-3.31 2.69-6 6-6s6 2.69 6 6" strokeWidth=".5"/></svg>,
+  alumnos:    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><rect x="3" y="2.5" width="12" height="13" rx="1.5"/><path d="M6 6h6M6 9h6M6 12h4"/></svg>,
+  cobros:     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><rect x="1.5" y="4.5" width="15" height="10.5" rx="1.5"/><path d="M1.5 7.5h15M5.25 11.25h1.5"/></svg>,
+  rutas:      <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M9 1.5l1.5 4.5H15l-3.75 2.75 1.5 4.5L9 10.5l-3.75 2.75 1.5-4.5L3 6h4.5z"/></svg>,
+  asistencia: <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><rect x="2.25" y="3" width="13.5" height="13.5" rx="1.5"/><path d="M12 1.5v3M6 1.5v3M2.25 7.5h13.5M5.25 10.5h2.25M5.25 13.5h2.25"/></svg>,
+  avisos:     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15.75 12a1.5 1.5 0 01-1.5 1.5H4.5L1.5 16.5V3a1.5 1.5 0 011.5-1.5h11.25a1.5 1.5 0 011.5 1.5v9z"/></svg>,
+  edit:       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M10.5 2.5l3 3-7.5 7.5H3.5v-3l7-7z"/></svg>,
+  trash:      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M2 4h12M5 4V2.5h6V4M13 4l-1 9.5H4L3 4"/><path d="M6.5 7v4M9.5 7v4"/></svg>,
+  logout:     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M6 2.5H3a1 1 0 00-1 1v9a1 1 0 001 1h3"/><path d="M11 11l3-3-3-3M14 8H6"/></svg>,
+  email:      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="#0F2044" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="4" y="10" width="36" height="24" rx="3"/><path d="M4 13l18 13L40 13"/></svg>,
+  check:      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="#1A8A4A" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><circle cx="22" cy="22" r="18"/><path d="M13 22l7 7 11-14"/></svg>,
+  bus:        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true"><rect x="3" y="8" width="30" height="20" rx="3" fill="#0F2044"/><rect x="5" y="10" width="8" height="6" rx="1" fill="#F5C400"/><rect x="15" y="10" width="8" height="6" rx="1" fill="#F5C400"/><rect x="25" y="10" width="6" height="6" rx="1" fill="#F5C400"/><rect x="3" y="24" width="30" height="4" rx="1" fill="#0F2044"/><circle cx="9" cy="29" r="3" fill="#263F6B" stroke="#F5C400" strokeWidth="1.5"/><circle cx="27" cy="29" r="3" fill="#263F6B" stroke="#F5C400" strokeWidth="1.5"/><rect x="5" y="19" width="26" height="3" rx="1" fill="#F5C400" opacity=".3"/><path d="M3 16h30" stroke="#F5C400" strokeWidth=".8" opacity=".4"/></svg>,
+  busLarge:   <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="4" y="10" width="40" height="26" rx="4" fill="#0F2044"/><rect x="6" y="13" width="10" height="8" rx="1.5" fill="#F5C400"/><rect x="19" y="13" width="10" height="8" rx="1.5" fill="#F5C400"/><rect x="32" y="13" width="10" height="8" rx="1.5" fill="#F5C400"/><rect x="4" y="32" width="40" height="4" rx="1" fill="#0F2044"/><circle cx="12" cy="38" r="4" fill="#263F6B" stroke="#F5C400" strokeWidth="2"/><circle cx="36" cy="38" r="4" fill="#263F6B" stroke="#F5C400" strokeWidth="2"/><rect x="6" y="24" width="36" height="4" rx="1" fill="#F5C400" opacity=".25"/><path d="M4 22h40" stroke="#F5C400" strokeWidth="1" opacity=".4"/></svg>,
+  lock:       <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="#0F2044" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="8" y="20" width="28" height="18" rx="3"/><path d="M14 20v-6a8 8 0 0116 0v6"/><circle cx="22" cy="30" r="2" fill="#0F2044"/></svg>,
+  warn:       <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 4L38 34H2L20 4z" fill="#FEF3C7" stroke="#B45309" strokeWidth="2"/><path d="M20 16v8" stroke="#B45309" strokeWidth="2.5" strokeLinecap="round"/><circle cx="20" cy="28" r="1.5" fill="#B45309"/></svg>,
+  inbox:      <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#8A96AA" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><rect x="3" y="6" width="30" height="24" rx="2"/><path d="M3 22h8l3 4h8l3-4h8"/></svg>,
+  megaphone:  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M3 6v4h2l5 3V3L5 6H3z"/><path d="M12 5.5c.8.6 1.3 1.5 1.3 2.5s-.5 1.9-1.3 2.5"/></svg>,
+  link:       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M6.5 4H4a3 3 0 000 6h2.5M9.5 12H12a3 3 0 000-6H9.5M5 8h6"/></svg>,
+}
+
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 function Skeleton({ w = '100%', h = 18, r = 6 }) {
   return (
     <div style={{
       width: w, height: h, borderRadius: r,
-      background: 'linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)',
+      background: 'linear-gradient(90deg,#EBF0F8 25%,#F5F8FD 50%,#EBF0F8 75%)',
       backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
     }} aria-hidden="true" />
   )
@@ -58,7 +92,7 @@ function Apoderados() {
 
   return (
     <div style={s.vista}>
-      <style>{`@keyframes shimmer{to{background-position:-200% 0}}.btn-icon:hover{opacity:.75}.fila:hover{background:#f8fafc}`}</style>
+      <style>{`@keyframes shimmer{to{background-position:-200% 0}}.btn-icon:hover{opacity:.65}.fila:hover{background:#F2F5FA}`}</style>
       <div style={s.vistaHeader}>
         <h2 style={s.vtitulo}>Apoderados</h2>
         <button style={s.btnPrimario} onClick={abrirNuevo} aria-label="Agregar apoderado">+ Agregar</button>
@@ -76,7 +110,7 @@ function Apoderados() {
         </div>
       ) : lista.length === 0 ? (
         <div style={s.vacio} role="status">
-          <span style={{ fontSize: 40 }}>👨‍👩‍👧</span>
+          <span style={{ display: 'inline-flex', marginBottom: 12, color: '#8A96AA' }}>{IC.apoderados}</span>
           <p>Aún no hay apoderados.<br />Agrega el primero.</p>
         </div>
       ) : (
@@ -93,8 +127,8 @@ function Apoderados() {
               <span style={s.cel} role="cell">{ap.telefono || '—'}</span>
               <span style={s.cel} role="cell">{ap.email || '—'}</span>
               <span style={s.celAcciones} role="cell">
-                <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(ap)} aria-label={`Editar ${ap.nombre}`}>✏️</button>
-                <button className="btn-icon" style={s.btnIcono} onClick={() => eliminar(ap.id)} aria-label={`Eliminar ${ap.nombre}`}>🗑️</button>
+                <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(ap)} aria-label={`Editar ${ap.nombre}`}>{IC.edit}</button>
+                <button className="btn-icon" style={{ ...s.btnIcono, color: '#C0202F' }} onClick={() => eliminar(ap.id)} aria-label={`Eliminar ${ap.nombre}`}>{IC.trash}</button>
               </span>
             </div>
           ))}
@@ -194,12 +228,12 @@ function Alumnos() {
         </div>
       ) : apoderados.length === 0 ? (
         <div style={s.vacio} role="status">
-          <span style={{ fontSize: 40 }}>⚠️</span>
+          <span style={{ display: 'inline-flex', marginBottom: 12 }}>{IC.warn}</span>
           <p>Primero debes agregar al menos un <strong>apoderado</strong>.</p>
         </div>
       ) : lista.length === 0 ? (
         <div style={s.vacio} role="status">
-          <span style={{ fontSize: 40 }}>🎒</span>
+          <span style={{ display: 'inline-flex', marginBottom: 12, color: '#8A96AA' }}>{IC.alumnos}</span>
           <p>Aún no hay alumnos.<br />Agrega el primero.</p>
         </div>
       ) : (
@@ -227,8 +261,8 @@ function Alumnos() {
                 </button>
               </span>
               <span style={s.celAcciones} role="cell">
-                <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(al)} aria-label={`Editar ${al.nombre}`}>✏️</button>
-                <button className="btn-icon" style={s.btnIcono} onClick={() => eliminar(al.id)} aria-label={`Eliminar ${al.nombre}`}>🗑️</button>
+                <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(al)} aria-label={`Editar ${al.nombre}`}>{IC.edit}</button>
+                <button className="btn-icon" style={{ ...s.btnIcono, color: '#C0202F' }} onClick={() => eliminar(al.id)} aria-label={`Eliminar ${al.nombre}`}>{IC.trash}</button>
               </span>
             </div>
           ))}
@@ -395,7 +429,7 @@ function Cobros() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           role="dialog" aria-modal="true" aria-label="Editar monto">
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 320, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
-            <h3 style={{ margin: '0 0 6px', fontSize: 17, color: '#0f1f3d' }}>Editar monto</h3>
+            <h3 style={{ margin: '0 0 6px', fontSize: 17, color: '#0F2044' }}>Editar monto</h3>
             <p style={{ margin: '0 0 18px', fontSize: 13, color: '#64748b' }}>{editando.alumnos?.nombre}</p>
             <label htmlFor="monto-edit" style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Monto ($)</label>
             <input
@@ -431,7 +465,7 @@ function Cobros() {
             aria-label="Seleccionar mes"
           />
           <button style={s.btnPrimario} onClick={generar} disabled={generando} aria-label="Generar cobros del mes">
-            {generando ? 'Generando…' : '⚡ Generar mes'}
+            {generando ? 'Generando…' : 'Generar mes'}
           </button>
         </div>
       </div>
@@ -472,10 +506,10 @@ function Cobros() {
         </div>
       ) : lista.length === 0 ? (
         <div style={s.vacio} role="status">
-          <span style={{ fontSize: 40 }}>💰</span>
+          <span style={{ display: 'inline-flex', marginBottom: 12, color: '#8A96AA' }}>{IC.cobros}</span>
           <p>
             No hay cobros para <strong>{mesLabel(mes)}</strong>.<br />
-            Presiona <em>⚡ Generar mes</em> para crearlos.
+            Presiona <em>Generar mes</em> para crearlos.
           </p>
         </div>
       ) : (
@@ -515,7 +549,7 @@ function Cobros() {
                   <button
                     onClick={() => cobrarFlow(c)}
                     disabled={pagandoFlow.has(c.id)}
-                    style={{ background: pagandoFlow.has(c.id) ? '#93c5fd' : '#2563eb', border: 'none', cursor: pagandoFlow.has(c.id) ? 'wait' : 'pointer', fontSize: 13, padding: '5px 10px', borderRadius: 6, color: '#fff', fontWeight: 600, opacity: pagandoFlow.has(c.id) ? 0.7 : 1 }}
+                    style={{ background: pagandoFlow.has(c.id) ? '#7A9CC8' : '#0F2044', border: 'none', cursor: pagandoFlow.has(c.id) ? 'wait' : 'pointer', fontSize: 13, padding: '5px 10px', borderRadius: 6, color: '#fff', fontWeight: 600, opacity: pagandoFlow.has(c.id) ? 0.7 : 1 }}
                     aria-label={`Cobrar por Flow a ${c.alumnos?.nombre}`}
                   >{pagandoFlow.has(c.id) ? 'Enviando…' : 'Cobrar'}</button>
                 ) : (
@@ -616,8 +650,8 @@ function Rutas() {
         <button style={s.btnPrimario} onClick={abrirNuevo}>+ Nueva ruta</button>
       </div>
 
-      <div style={{ background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: 20, marginBottom: 24 }}>
-        <p style={{ fontWeight: 600, marginBottom: 8 }}>🔗 Link de registro para apoderados</p>
+      <div style={{ background: '#F2F5FA', border: '1px solid #C5D2E8', borderRadius: 10, padding: 20, marginBottom: 24 }}>
+        <p style={{ fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, color: '#0F2044' }}><span style={{ color: '#0F2044' }}>{IC.link}</span> Link de registro para apoderados</p>
         {token ? (
           <div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
@@ -661,7 +695,7 @@ function Rutas() {
         </div>
       ) : lista.length === 0 ? (
         <div style={s.vacio} role="status">
-          <span style={{ fontSize: 40 }}>🗺️</span>
+          <span style={{ display: 'inline-flex', marginBottom: 12, color: '#8A96AA' }}>{IC.rutas}</span>
           <p>Aún no tienes rutas registradas.<br />Agrega los colegios a los que haces transporte.</p>
         </div>
       ) : (
@@ -682,8 +716,8 @@ function Rutas() {
               <span style={s.cel} role="cell">{r.horario_vuelta || '—'}</span>
               <span style={s.cel} role="cell">{r.capacidad} cupos</span>
               <span style={s.celAcciones} role="cell">
-                <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(r)} aria-label={`Editar ruta ${r.nombre}`}>✏️</button>
-                <button className="btn-icon" style={s.btnIcono} onClick={() => eliminar(r.id)} aria-label={`Eliminar ruta ${r.nombre}`}>🗑️</button>
+                <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(r)} aria-label={`Editar ruta ${r.nombre}`}>{IC.edit}</button>
+                <button className="btn-icon" style={{ ...s.btnIcono, color: '#C0202F' }} onClick={() => eliminar(r.id)} aria-label={`Eliminar ruta ${r.nombre}`}>{IC.trash}</button>
               </span>
             </div>
           ))}
@@ -773,7 +807,7 @@ function Asistencia() {
       <div style={s.vistaHeader}>
         <h2 style={s.vtitulo}>Asistencia</h2>
         <button style={s.btnPrimario} onClick={guardarAsistencia} disabled={guardando || alumnos.length === 0}>
-          {guardando ? 'Guardando…' : '💾 Guardar'}
+          {guardando ? 'Guardando…' : 'Guardar'}
         </button>
       </div>
 
@@ -792,11 +826,11 @@ function Asistencia() {
               key={t}
               onClick={() => setTipo(t)}
               style={{ padding: '8px 18px', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                background: tipo === t ? '#2563eb' : '#fff',
-                color: tipo === t ? '#fff' : '#374151' }}
+                background: tipo === t ? '#0F2044' : '#fff',
+                color: tipo === t ? '#fff' : '#4B5A75' }}
               aria-pressed={tipo === t}
             >
-              {t === 'ida' ? '🌅 Ida' : '🌆 Vuelta'}
+              {t === 'ida' ? 'Ida' : 'Vuelta'}
             </button>
           ))}
         </div>
@@ -810,7 +844,7 @@ function Asistencia() {
         </div>
       ) : alumnos.length === 0 ? (
         <div style={s.vacio} role="status">
-          <span style={{ fontSize: 40 }}>🎒</span>
+          <span style={{ display: 'inline-flex', marginBottom: 12, color: '#8A96AA' }}>{IC.alumnos}</span>
           <p>No hay alumnos activos registrados.</p>
         </div>
       ) : (
@@ -820,7 +854,7 @@ function Asistencia() {
             return (
               <div key={al.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: i < alumnos.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: '#0f1f3d' }}>{al.nombre}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: '#0F2044' }}>{al.nombre}</div>
                   <div style={{ fontSize: 12, color: '#94a3b8' }}>{al.apoderados?.nombre || '—'}</div>
                 </div>
                 <button
@@ -844,10 +878,10 @@ function Asistencia() {
 
 // ─── Avisos ───────────────────────────────────────────────────────────────────
 const AVISOS_RAPIDOS = [
-  { emoji: '🚗', texto: 'En camino, llegaré pronto.' },
-  { emoji: '⏰', texto: 'Llegaré con retraso de aprox. 15 min.' },
-  { emoji: '🚧', texto: 'Hay tráfico. Aviso cuando salga.' },
-  { emoji: '✅', texto: 'Ya salí, voy en camino.' },
+  { texto: 'En camino, llegaré pronto.' },
+  { texto: 'Llegaré con retraso de aprox. 15 min.' },
+  { texto: 'Hay tráfico. Aviso cuando salga.' },
+  { texto: 'Ya salí, voy en camino.' },
 ]
 
 function Avisos() {
@@ -910,7 +944,7 @@ function Avisos() {
                 background: mensaje === a.texto ? '#eff6ff' : '#f8fafc',
                 color: '#374151', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}
             >
-              {a.emoji} {a.texto}
+              {a.texto}
             </button>
           ))}
         </div>
@@ -935,7 +969,7 @@ function Avisos() {
         {msg && <p style={{ ...s.errorMsg, color: msg.startsWith('✅') ? '#16a34a' : '#dc2626', marginBottom: 8 }} role="status">{msg}</p>}
 
         <button style={s.btnPrimario} onClick={enviar} disabled={enviando || !mensaje.trim()}>
-          {enviando ? 'Enviando…' : '📢 Enviar aviso'}
+          {enviando ? 'Enviando…' : 'Enviar aviso'}
         </button>
       </div>
 
@@ -943,16 +977,16 @@ function Avisos() {
       {cargando ? (
         <div style={s.skeletonWrap}>{[1,2].map(i => <div key={i} style={s.skeletonFila}><Skeleton w="80%" h={14} /></div>)}</div>
       ) : lista.length === 0 ? (
-        <div style={s.vacio}><span style={{ fontSize: 36 }}>📭</span><p>No hay avisos enviados aún.</p></div>
+        <div style={s.vacio}><span style={{ display: 'inline-flex', marginBottom: 12 }}>{IC.inbox}</span><p>No hay avisos enviados aún.</p></div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lista.map(av => (
             <div key={av.id} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div>
-                <p style={{ fontSize: 14, color: '#0f1f3d', margin: '0 0 4px', fontWeight: 500 }}>{av.mensaje}</p>
+                <p style={{ fontSize: 14, color: '#0F2044', margin: '0 0 4px', fontWeight: 500 }}>{av.mensaje}</p>
                 <span style={{ fontSize: 12, color: '#94a3b8' }}>{formatFecha(av.created_at)}</span>
               </div>
-              <button onClick={() => eliminar(av.id)} style={s.btnIcono} aria-label="Eliminar aviso">🗑️</button>
+              <button onClick={() => eliminar(av.id)} style={{ ...s.btnIcono, color: '#C0202F' }} aria-label="Eliminar aviso">{IC.trash}</button>
             </div>
           ))}
         </div>
@@ -1015,18 +1049,18 @@ function Home({ onNavegar }) {
   }
 
   const tarjetas = datos ? [
-    { id: 'apoderados', icon: '👨‍👩‍👧', label: 'Apoderados', valor: datos.nApoderados ?? 0, sub: 'registrados', color: '#eff6ff', accent: '#2563eb' },
-    { id: 'alumnos',    icon: '🎒',     label: 'Alumnos activos', valor: datos.nAlumnos ?? 0, sub: 'en servicio', color: '#f0fdf4', accent: '#16a34a' },
-    { id: 'cobros',     icon: '💰',     label: 'Por cobrar', valor: `$${(datos.pendiente || 0).toLocaleString('es-CL')}`, sub: 'este mes', color: '#fefce8', accent: '#b45309' },
-    { id: 'rutas',      icon: '🗺️',     label: 'Rutas', valor: datos.nRutas ?? 0, sub: 'configuradas', color: '#fdf4ff', accent: '#9333ea' },
-    { id: 'asistencia', icon: '📋',     label: 'Asistencia hoy', valor: `${datos.presentes}/${datos.nAlumnosActivos ?? 0}`, sub: 'presentes en ida', color: '#f0f9ff', accent: '#0284c7' },
-    { id: 'avisos',     icon: '📢',     label: 'Último aviso', valor: datos.aviso ? '1' : '—', sub: datos.tiempoAviso || 'sin avisos', color: '#fff7ed', accent: '#ea580c' },
+    { id: 'apoderados', icon: IC.apoderados, label: 'Apoderados',      valor: datos.nApoderados ?? 0, sub: 'registrados',        color: '#EBF2FF', accent: '#0F2044' },
+    { id: 'alumnos',    icon: IC.alumnos,    label: 'Alumnos activos', valor: datos.nAlumnos ?? 0,    sub: 'en servicio',        color: '#E3F5EC', accent: '#1A8A4A' },
+    { id: 'cobros',     icon: IC.cobros,     label: 'Por cobrar',      valor: `$${(datos.pendiente || 0).toLocaleString('es-CL')}`, sub: 'este mes', color: '#FEF3C7', accent: '#B45309' },
+    { id: 'rutas',      icon: IC.rutas,      label: 'Rutas',           valor: datos.nRutas ?? 0,      sub: 'configuradas',       color: '#F2EDFF', accent: '#6B21A8' },
+    { id: 'asistencia', icon: IC.asistencia, label: 'Asistencia hoy',  valor: `${datos.presentes}/${datos.nAlumnosActivos ?? 0}`, sub: 'presentes en ida', color: '#E0F2FE', accent: '#0369A1' },
+    { id: 'avisos',     icon: IC.avisos,     label: 'Último aviso',    valor: datos.aviso ? '1' : '—', sub: datos.tiempoAviso || 'sin avisos', color: '#FFF1E6', accent: '#C2440C' },
   ] : []
 
   return (
     <div style={s.vista}>
       <div style={{ marginBottom: 28 }}>
-        <h2 style={{ ...s.vtitulo, fontSize: 22, marginBottom: 4 }}>¡Bienvenido! 👋</h2>
+        <h2 style={{ ...s.vtitulo, fontSize: 22, marginBottom: 4 }}>¡Bienvenido!</h2>
         <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>{fechaLabel}</p>
       </div>
 
@@ -1051,9 +1085,9 @@ function Home({ onNavegar }) {
               onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,.07)' }}
               aria-label={`Ir a ${t.label}`}
             >
-              <div style={{ fontSize: 26, marginBottom: 10 }}>{t.icon}</div>
+              <div style={{ display: 'inline-flex', marginBottom: 12, color: t.accent, width: 24, height: 24 }}>{t.icon}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: t.accent, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>{t.label}</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#0f1f3d', lineHeight: 1, marginBottom: 6 }}>{t.valor}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#0F2044', lineHeight: 1, marginBottom: 6 }}>{t.valor}</div>
               <div style={{ fontSize: 12, color: '#64748b' }}>{t.sub}</div>
             </button>
           ))}
@@ -1062,7 +1096,7 @@ function Home({ onNavegar }) {
 
       {datos && datos.aviso && (
         <div style={{ marginTop: 28, background: '#fff', borderRadius: 12, padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', borderLeft: '4px solid #ea580c' }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: '#ea580c', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '.04em' }}>📢 Último aviso — {datos.tiempoAviso}</p>
+          <p style={{ fontSize: 12, fontWeight: 600, color: '#C2440C', margin: '0 0 6px', letterSpacing: '.04em', display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ color: '#C2440C' }}>{IC.megaphone}</span> Último aviso — {datos.tiempoAviso}</p>
           <p style={{ fontSize: 14, color: '#374151', margin: 0 }}>{datos.aviso.mensaje}</p>
         </div>
       )}
@@ -1072,13 +1106,13 @@ function Home({ onNavegar }) {
 
 // ─── Menú ─────────────────────────────────────────────────────────────────────
 const MENU = [
-  { id: 'home',       icon: '🏠',     label: 'Inicio' },
-  { id: 'apoderados', icon: '👨‍👩‍👧', label: 'Apoderados' },
-  { id: 'alumnos',    icon: '🎒',     label: 'Alumnos' },
-  { id: 'cobros',     icon: '💰',     label: 'Cobros' },
-  { id: 'rutas',      icon: '🗺️',     label: 'Rutas' },
-  { id: 'asistencia', icon: '📋',     label: 'Asistencia' },
-  { id: 'avisos',     icon: '📢',     label: 'Avisos' },
+  { id: 'home',       icon: IC.home,       label: 'Inicio' },
+  { id: 'apoderados', icon: IC.apoderados, label: 'Apoderados' },
+  { id: 'alumnos',    icon: IC.alumnos,    label: 'Alumnos' },
+  { id: 'cobros',     icon: IC.cobros,     label: 'Cobros' },
+  { id: 'rutas',      icon: IC.rutas,      label: 'Rutas' },
+  { id: 'asistencia', icon: IC.asistencia, label: 'Asistencia' },
+  { id: 'avisos',     icon: IC.avisos,     label: 'Avisos' },
 ]
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -1096,8 +1130,8 @@ function ModalSalir({ onConfirmar, onCancelar }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: '#fff', borderRadius: 16, padding: '32px 28px', maxWidth: 360, width: '90%', boxShadow: '0 8px 40px rgba(0,0,0,.18)', textAlign: 'center' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🚪</div>
-        <h2 style={{ margin: '0 0 8px', fontSize: 20, color: '#0f1f3d' }}>¿Deseas salir?</h2>
+        <div style={{ marginBottom: 12, color: '#0F2044' }}>{IC.logout}</div>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20, color: '#0F2044' }}>¿Deseas salir?</h2>
         <p style={{ color: '#64748b', fontSize: 14, margin: '0 0 24px' }}>Tu sesión se cerrará. Deberás iniciar sesión nuevamente.</p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
           <button
@@ -1137,7 +1171,8 @@ function Dashboard({ sesion, onLogout }) {
   const Sidebar = () => (
     <nav
       style={{
-        width: SIDEBAR_W, minWidth: SIDEBAR_W, background: '#0f1f3d',
+        width: SIDEBAR_W, minWidth: SIDEBAR_W, background: '#0F2044',
+        borderTop: '3px solid #F5C400',
         display: 'flex', flexDirection: 'column',
         padding: '24px 0 16px', height: '100vh',
         ...(esDesktop
@@ -1148,7 +1183,7 @@ function Dashboard({ sesion, onLogout }) {
       aria-label="Menú principal"
     >
       <div style={s.sideHeader}>
-        <span style={s.sideLogo}>🚌</span>
+        <span style={s.sideLogo}>{IC.bus}</span>
         <div>
           <div style={s.sideNombre}>Furcole</div>
           <div style={s.sideUser}>{sesion.user.email}</div>
@@ -1168,13 +1203,13 @@ function Dashboard({ sesion, onLogout }) {
         ))}
       </div>
       <button style={s.logoutBtn} onClick={pedirSalir} aria-label="Cerrar sesión">
-        🚪 Cerrar sesión
+        {IC.logout} Cerrar sesión
       </button>
     </nav>
   )
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui,sans-serif', background: '#f0f4f9', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', fontFamily: "'Inter',system-ui,sans-serif", background: '#F2F5FA', overflow: 'hidden' }}>
 
       {modalSalir && <ModalSalir onConfirmar={confirmarSalir} onCancelar={cancelarSalir} />}
 
@@ -1208,7 +1243,7 @@ function Dashboard({ sesion, onLogout }) {
             style={{ background: 'none', border: '1px solid #dde4ef', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
             aria-label="Cerrar sesión"
           >
-            🚪 <span style={{ display: esDesktop ? 'inline' : 'none' }}>Salir</span>
+            {IC.logout} <span style={{ display: esDesktop ? 'inline' : 'none' }}>Salir</span>
           </button>
         </header>
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -1350,7 +1385,7 @@ function Login({ vistaInicial = 'login' }) {
   return (
     <div style={s.fondo}>
       <div style={s.card} role="main">
-        <div style={s.logo} aria-hidden="true">🚌</div>
+        <div style={s.logo} aria-hidden="true">{IC.busLarge}</div>
         <h1 style={s.titulo}>Furcole</h1>
         <p style={s.subtitulo}>Gestión de transporte escolar</p>
 
@@ -1397,7 +1432,7 @@ function Login({ vistaInicial = 'login' }) {
             </button>
             <button
               type="button"
-              style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', marginTop: 4, textDecoration: 'underline' }}
+              style={{ background: 'none', border: 'none', color: '#0F2044', fontSize: 13, cursor: 'pointer', marginTop: 4, textDecoration: 'underline' }}
               onClick={() => { setVista('recuperar'); setError('') }}
             >
               ¿Olvidaste tu contraseña?
@@ -1433,7 +1468,7 @@ function Login({ vistaInicial = 'login' }) {
 
         {vista === 'recuperar_ok' && (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
+            <div style={{ marginBottom: 12 }}>{IC.email}</div>
             <p style={{ fontSize: 14, color: '#374151', marginBottom: 16 }}>
               Si el email está registrado, recibirás un enlace para restablecer tu contraseña.
             </p>
@@ -1475,7 +1510,7 @@ function ActualizarPassword() {
   if (listo) return (
     <div style={s.fondo}>
       <div style={s.card} role="main">
-        <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+        <div style={{ marginBottom: 12 }}>{IC.check}</div>
         <h1 style={s.titulo}>Contraseña actualizada</h1>
         <p style={{ color: '#64748b', fontSize: 14, margin: '8px 0 24px' }}>
           Ya puedes iniciar sesión con tu nueva contraseña.
@@ -1488,7 +1523,7 @@ function ActualizarPassword() {
   return (
     <div style={s.fondo}>
       <div style={s.card} role="main">
-        <div style={s.logo} aria-hidden="true">🔐</div>
+        <div style={s.logo} aria-hidden="true">{IC.lock}</div>
         <h1 style={{ ...s.titulo, fontSize: 22 }}>Nueva contraseña</h1>
         <p style={s.subtitulo}>Elige una contraseña segura</p>
         <form onSubmit={guardar} style={s.form} noValidate>
@@ -1604,35 +1639,35 @@ export default function App() {
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 const s = {
-  fondo:         { minHeight: '100vh', background: '#f0f4f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' },
+  fondo:         { minHeight: '100vh', background: '#F2F5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter',system-ui,sans-serif" },
   card:          { background: '#fff', borderRadius: 16, padding: '40px 36px', width: '100%', maxWidth: 380, boxShadow: '0 4px 24px rgba(0,0,0,.10)', textAlign: 'center' },
-  logo:          { fontSize: 48, marginBottom: 8 },
-  titulo:        { fontSize: 26, fontWeight: 700, color: '#0f1f3d', margin: '0 0 4px' },
+  logo:          { marginBottom: 8 },
+  titulo:        { fontSize: 26, fontWeight: 700, color: '#0F2044', margin: '0 0 4px' },
   subtitulo:     { color: '#64748b', margin: '0 0 28px', fontSize: 14 },
-  centro:        { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'system-ui' },
-  sidebar:       { position: 'fixed', top: 0, left: 0, height: '100vh', width: 240, background: '#0f1f3d', display: 'flex', flexDirection: 'column', zIndex: 100, transition: 'left .25s', padding: '24px 0 16px' },
-  sideHeader:    { display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 24px', borderBottom: '1px solid #1e3050' },
-  sideLogo:      { fontSize: 28 },
-  sideNombre:    { color: '#fff', fontWeight: 700, fontSize: 15 },
+  centro:        { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: "'Inter',system-ui,sans-serif" },
+  sidebar:       { position: 'fixed', top: 0, left: 0, height: '100vh', width: 240, background: '#0F2044', borderTop: '3px solid #F5C400', display: 'flex', flexDirection: 'column', zIndex: 100, transition: 'left .25s', padding: '24px 0 16px' },
+  sideHeader:    { display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 24px', borderBottom: '1px solid #263F6B' },
+  sideLogo:      { lineHeight: 0 },
+  sideNombre:    { color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: "'Sora',system-ui,sans-serif", letterSpacing: '.01em' },
   sideUser:      { color: '#7a9cc8', fontSize: 12, marginTop: 2 },
   nav:           { flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 },
-  navBtn:        { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: '#a8c0dd', fontSize: 14, fontWeight: 500, cursor: 'pointer', textAlign: 'left' },
-  navActivo:     { background: '#1e3a5f', color: '#fff' },
-  navIcon:       { fontSize: 18, width: 24, textAlign: 'center' },
-  logoutBtn:     { margin: '0 12px', padding: '10px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: '#64748b', fontSize: 13, cursor: 'pointer', textAlign: 'left' },
+  navBtn:        { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: '#a8c0dd', fontSize: 14, fontWeight: 500, cursor: 'pointer', textAlign: 'left', position: 'relative' },
+  navActivo:     { background: '#1A3A6B', color: '#fff', borderLeft: '3px solid #F5C400', paddingLeft: 9 },
+  navIcon:       { width: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  logoutBtn:     { margin: '0 12px', padding: '10px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: '#64748b', fontSize: 13, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 },
   overlay:       { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 99 },
   main:          { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 },
   topbar:        { display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px', height: 56, background: '#fff', borderBottom: '1px solid #dde4ef', position: 'sticky', top: 0, zIndex: 10 },
-  hamburger:     { fontSize: 20, background: 'none', border: 'none', cursor: 'pointer', color: '#0f1f3d', padding: 4 },
-  topTitulo:     { fontWeight: 600, fontSize: 16, color: '#0f1f3d' },
+  hamburger:     { fontSize: 20, background: 'none', border: 'none', cursor: 'pointer', color: '#0F2044', padding: 4 },
+  topTitulo:     { fontWeight: 600, fontSize: 16, color: '#0F2044', display: 'flex', alignItems: 'center', gap: 8 },
   contenido:     { flex: 1, overflowY: 'auto' },
   vista:         { padding: 24 },
   vistaHeader:   { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 },
-  vtitulo:       { fontSize: 20, fontWeight: 700, color: '#0f1f3d', margin: 0 },
+  vtitulo:       { fontSize: 20, fontWeight: 700, color: '#0F2044', margin: 0 },
   tabla:         { background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.07)' },
-  tablaHead:     { display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr 80px', padding: '10px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em' },
+  tablaHead:     { display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr 80px', padding: '10px 16px', background: '#F2F5FA', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em' },
   tablaFila:     { display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr 80px', padding: '12px 16px', borderBottom: '1px solid #f1f5f9', alignItems: 'center', transition: 'background .15s' },
-  celNombre:     { fontWeight: 600, color: '#0f1f3d', fontSize: 14 },
+  celNombre:     { fontWeight: 600, color: '#0F2044', fontSize: 14 },
   cel:           { color: '#64748b', fontSize: 14 },
   celAcciones:   { display: 'flex', gap: 4, justifyContent: 'flex-end' },
   btnIcono:      { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '2px 4px', transition: 'opacity .15s' },
@@ -1641,19 +1676,19 @@ const s = {
   skeletonFila:  { background: '#fff', borderRadius: 10, padding: '14px 16px', display: 'flex', gap: 24, alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,.05)' },
   vacio:         { textAlign: 'center', padding: '60px 20px', color: '#64748b', lineHeight: 1.6 },
   resumenRow:    { display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' },
-  resumenCard:   { flex: 1, minWidth: 120, background: '#f8fafc', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4 },
+  resumenCard:   { flex: 1, minWidth: 120, background: '#F2F5FA', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4 },
   resumenLabel:  { fontSize: 12, color: '#64748b', fontWeight: 500 },
-  resumenValor:  { fontSize: 20, fontWeight: 700, color: '#0f1f3d' },
+  resumenValor:  { fontSize: 20, fontWeight: 700, color: '#0F2044' },
   form:          { display: 'flex', flexDirection: 'column', gap: 10 },
   label:         { fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: -4 },
   labelLogin:    { fontSize: 13, fontWeight: 600, color: '#374151', textAlign: 'left', marginBottom: -4 },
-  input:         { padding: '11px 13px', borderRadius: 8, border: '1.5px solid #dde4ef', fontSize: 14, outline: 'none', fontFamily: 'system-ui', background: '#fff', width: '100%', boxSizing: 'border-box' },
-  btn:           { padding: 13, borderRadius: 8, background: '#2563eb', color: '#fff', border: 'none', fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 4 },
-  btnPrimario:   { padding: '9px 18px', borderRadius: 8, background: '#2563eb', color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+  input:         { padding: '11px 13px', borderRadius: 8, border: '1.5px solid #dde4ef', fontSize: 14, outline: 'none', fontFamily: "'Inter',system-ui,sans-serif", background: '#fff', width: '100%', boxSizing: 'border-box' },
+  btn:           { padding: 13, borderRadius: 8, background: '#0F2044', color: '#fff', border: 'none', fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 4 },
+  btnPrimario:   { padding: '9px 18px', borderRadius: 8, background: '#0F2044', color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
   btnSecundario: { padding: '9px 18px', borderRadius: 8, background: '#f1f5f9', color: '#374151', border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer' },
   errorMsg:      { color: '#dc2626', fontSize: 13, margin: 0 },
   modalFondo:    { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
   modalCard:     { background: '#fff', borderRadius: 16, padding: '28px 28px 24px', width: '100%', maxWidth: 420, boxShadow: '0 8px 40px rgba(0,0,0,.18)' },
-  modalTitulo:   { fontSize: 17, fontWeight: 700, color: '#0f1f3d', margin: '0 0 18px' },
+  modalTitulo:   { fontSize: 17, fontWeight: 700, color: '#0F2044', margin: '0 0 18px' },
   modalBtns:     { display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 },
 }
