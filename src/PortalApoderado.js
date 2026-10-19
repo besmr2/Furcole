@@ -688,6 +688,7 @@ function BuscarTransporte({ userId, onVinculado }) {
   const [colegios, setColegios]         = useState([])
   const [colegioSel, setColegioSel]     = useState('')
   const [modalidadSel, setModalidadSel] = useState('')
+  const [sectorSel, setSectorSel]       = useState('')
   // Resultados
   const [resultados, setResultados]     = useState(null) // null = no buscado
   const [buscando, setBuscando]         = useState(false)
@@ -740,7 +741,7 @@ function BuscarTransporte({ userId, onVinculado }) {
     // Paso 2: perfil público visible + precio para esa modalidad
     const [{ data: perfiles }, { data: precios }] = await Promise.all([
       supabase.from('transportista_perfil')
-        .select('user_id, patente, anos_experiencia, descripcion, capacidad_total')
+        .select('user_id, patente, anos_experiencia, descripcion, capacidad_total, precios_publicos')
         .eq('visible', true)
         .in('user_id', tids),
       supabase.from('precios_modalidad')
@@ -754,10 +755,15 @@ function BuscarTransporte({ userId, onVinculado }) {
     const resultadosFinal = []
     for (const tp of (perfiles || [])) {
       const precio = precios?.find(pr => pr.user_id === tp.user_id)
-      if (!precio) continue  // no tiene precio para esta modalidad → no aparece
+      // Si tiene precios_publicos=true, debe tener precio para esa modalidad para aparecer
+      if (tp.precios_publicos && !precio) continue
       const { data: cuposData } = await supabase.rpc('cupos_disponibles', { p_user_id: tp.user_id })
       const cupos = cuposData ?? 0
-      resultadosFinal.push({ ...tp, precio_mensual: precio.precio_mensual, cupos_disponibles: cupos })
+      resultadosFinal.push({
+        ...tp,
+        precio_mensual: tp.precios_publicos ? precio?.precio_mensual : null,
+        cupos_disponibles: cupos,
+      })
     }
     // Ordenar: primero los que tienen cupos
     resultadosFinal.sort((a, b) => b.cupos_disponibles - a.cupos_disponibles)
@@ -802,12 +808,28 @@ function BuscarTransporte({ userId, onVinculado }) {
             Filtra por el colegio de tu hijo/a y la modalidad que necesitas. Solo verás transportistas con cupos disponibles.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Sector */}
+            {colegios.length > 0 && (() => {
+              const sectores = [...new Set(colegios.map(c => c.sector).filter(Boolean))].sort()
+              const LABEL_SECTOR = { penco: 'Penco centro', lirquen: 'Lirquén', cosmito: 'Cosmito' }
+              return (
+                <div>
+                  <label style={p.label}>Sector</label>
+                  <select style={p.input} value={sectorSel} onChange={e => { setSectorSel(e.target.value); setColegioSel('') }}>
+                    <option value="">Todos los sectores</option>
+                    {sectores.map(sec => (
+                      <option key={sec} value={sec}>{LABEL_SECTOR[sec] || sec}</option>
+                    ))}
+                  </select>
+                </div>
+              )
+            })()}
             {/* Colegio */}
             <div>
               <label style={p.label}>Colegio</label>
               <select style={p.input} value={colegioSel} onChange={e => setColegioSel(e.target.value)}>
                 <option value="">Selecciona el colegio…</option>
-                {colegios.map(c => (
+                {(sectorSel ? colegios.filter(c => c.sector === sectorSel) : colegios).map(c => (
                   <option key={c.id} value={c.id}>{c.nombre}</option>
                 ))}
               </select>
@@ -873,10 +895,14 @@ function BuscarTransporte({ userId, onVinculado }) {
                         )}
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: '#0F2044' }}>
-                          ${tp.precio_mensual.toLocaleString('es-CL')}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#94a3b8' }}>mensual</div>
+                        {tp.precio_mensual != null ? (<>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: '#0F2044' }}>
+                            ${tp.precio_mensual.toLocaleString('es-CL')}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>mensual</div>
+                        </>) : (
+                          <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', maxWidth: 80 }}>Precio a convenir</div>
+                        )}
                       </div>
                     </div>
                     {/* Descripción */}
@@ -926,7 +952,7 @@ function BuscarTransporte({ userId, onVinculado }) {
             <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 2, margin: '0 auto 20px' }} />
             <h2 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 700, color: '#0F2044' }}>Confirmar solicitud de cupo</h2>
             <p style={{ margin: '0 0 20px', fontSize: 13, color: '#64748b' }}>
-              Patente {modalSol.patente} · {LABEL_MODALIDAD[modalidadSel]} · ${modalSol.precio_mensual?.toLocaleString('es-CL')}/mes
+              Patente {modalSol.patente} · {LABEL_MODALIDAD[modalidadSel]}{modalSol.precio_mensual != null ? ` · $${modalSol.precio_mensual.toLocaleString('es-CL')}/mes` : ' · Precio a convenir'}
             </p>
 
             {/* Selector de alumno (si hay más de uno) */}

@@ -2240,6 +2240,7 @@ function Perfil() {
   const [precios, setPrecios]         = useState([])     // precios_modalidad rows
   const [colegiosCat, setColegiosCat] = useState([])     // catálogo completo
   const [tcActivos, setTcActivos]     = useState([])     // transportista_colegios activos
+  const [sectorFiltroPerf, setSectorFiltroPerf] = useState('') // filtro sector en checklist
   const [guardandoMkt, setGuardandoMkt] = useState(false)
   const [msgMkt, setMsgMkt]           = useState(null)   // {texto, ok}
 
@@ -2278,6 +2279,14 @@ function Perfil() {
     const { error } = await supabase.from('transportista_perfil')
       .upsert({ ...tpPerfil, visible: nuevoVisible, user_id: user.id }, { onConflict: 'user_id' })
     if (!error) setTpPerfil(p => ({ ...p, visible: nuevoVisible }))
+  }
+
+  async function togglePreciosPublicos() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const nuevo = !tpPerfil.precios_publicos
+    const { error } = await supabase.from('transportista_perfil')
+      .upsert({ ...tpPerfil, precios_publicos: nuevo, user_id: user.id }, { onConflict: 'user_id' })
+    if (!error) setTpPerfil(p => ({ ...p, precios_publicos: nuevo }))
   }
 
   // ── Guardar perfil público (descripción, experiencia, capacidad) ───────────
@@ -2607,6 +2616,40 @@ function Perfil() {
           </div>
         </div>
 
+        {/* Toggle precios públicos — solo si ya está visible */}
+        {tpPerfil.visible && (
+          <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#0F2044', marginBottom: 2 }}>Mostrar precios al apoderado</div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>
+                  {tpPerfil.precios_publicos
+                    ? 'Los apoderados ven tus tarifas antes de solicitar cupo.'
+                    : 'Los apoderados solo ven tus cupos disponibles. Activa para mostrar precios.'}
+                </div>
+              </div>
+              <button
+                onClick={togglePreciosPublicos}
+                aria-pressed={tpPerfil.precios_publicos}
+                style={{
+                  width: 52, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer', flexShrink: 0,
+                  background: tpPerfil.precios_publicos ? '#0F2044' : '#cbd5e1',
+                  position: 'relative', transition: 'background .2s',
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: 3,
+                  left: tpPerfil.precios_publicos ? 27 : 3,
+                  width: 22, height: 22, borderRadius: '50%',
+                  background: tpPerfil.precios_publicos ? '#F5C400' : '#fff',
+                  transition: 'left .2s',
+                  display: 'block',
+                }}/>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Perfil público: descripción, experiencia, capacidad */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', marginBottom: 16 }}>
           <p style={{ margin: '0 0 14px', fontWeight: 600, color: '#0F2044', fontSize: 14 }}>Perfil público</p>
@@ -2696,10 +2739,31 @@ function Perfil() {
         {/* Colegios que atiende */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', marginBottom: 16 }}>
           <p style={{ margin: '0 0 4px', fontWeight: 600, color: '#0F2044', fontSize: 14 }}>Colegios que atiendes</p>
-          <p style={{ margin: '0 0 14px', fontSize: 12, color: '#64748b' }}>Los apoderados filtrarán por colegio al buscar transporte. Marca los que cubres.</p>
+          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b' }}>Los apoderados filtrarán por colegio al buscar transporte. Marca los que cubres.</p>
+          {/* Filtro por sector */}
+          {colegiosCat.length > 0 && (() => {
+            const sectores = [...new Set(colegiosCat.map(c => c.sector).filter(Boolean))].sort()
+            const LABEL_SECTOR = { penco: 'Penco centro', lirquen: 'Lirquén', cosmito: 'Cosmito' }
+            return (
+              <select
+                value={sectorFiltroPerf}
+                onChange={e => setSectorFiltroPerf(e.target.value)}
+                style={{ ...s.input, marginBottom: 14, fontSize: 13 }}
+              >
+                <option value="">Todos los sectores</option>
+                {sectores.map(sec => (
+                  <option key={sec} value={sec}>{LABEL_SECTOR[sec] || sec}</option>
+                ))}
+              </select>
+            )
+          })()}
           {colegiosCat.length === 0
             ? <p style={{ fontSize: 13, color: '#94a3b8' }}>Cargando colegios…</p>
             : (() => {
+                // Filtrar por sector si hay uno seleccionado
+                const catFiltrado = sectorFiltroPerf
+                  ? colegiosCat.filter(c => c.sector === sectorFiltroPerf)
+                  : colegiosCat
                 // Agrupar por tipo
                 const grupos = {}
                 const labelTipo = {
@@ -2707,11 +2771,14 @@ function Perfil() {
                   especial_lenguaje: 'Lenguaje', especial_diferencial: 'Diferencial',
                   jardin: 'Jardín', sala_cuna: 'Sala Cuna', otro: 'Otro'
                 }
-                colegiosCat.forEach(c => {
+                catFiltrado.forEach(c => {
                   const g = labelTipo[c.tipo] || c.tipo
                   if (!grupos[g]) grupos[g] = []
                   grupos[g].push(c)
                 })
+                if (Object.keys(grupos).length === 0) return (
+                  <p style={{ fontSize: 13, color: '#94a3b8' }}>No hay colegios en este sector.</p>
+                )
                 return Object.entries(grupos).map(([grupo, cols]) => (
                   <div key={grupo} style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>{grupo}</div>
