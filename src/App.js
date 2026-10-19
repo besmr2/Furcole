@@ -1502,6 +1502,8 @@ export default function App() {
   const [sesion, setSesion]     = useState(null)
   const [cargando, setCargando] = useState(true)
   const ruta                    = window.location.pathname
+  const esRecovery              = window.location.hash.includes('type=recovery') ||
+                                  window.location.search.includes('type=recovery')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1521,8 +1523,8 @@ export default function App() {
 
   if (cargando) return <div style={s.centro} aria-busy="true"><Skeleton w={200} h={20} /></div>
 
-  // Ruta pública: actualizar contraseña
-  if (ruta.startsWith('/actualizar-password')) return <ActualizarPassword />
+  // Ruta pública: actualizar contraseña (directo o via token recovery en URL)
+  if (ruta.startsWith('/actualizar-password') || esRecovery) return <ActualizarPassword />
 
   if (!sesion) return <Login />
   return <Dashboard sesion={sesion} onLogout={handleLogout} />
