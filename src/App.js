@@ -1506,15 +1506,20 @@ export default function App() {
                                   window.location.search.includes('type=recovery')
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSesion(session); setCargando(false)
-    })
+    // onAuthStateChange maneja TODOS los casos: sesión existente, magic link, recovery
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         window.location.replace('/actualizar-password')
         return
       }
       setSesion(session)
+      setCargando(false)
+    })
+    // Disparar sesión inicial (cubre el caso sin token en URL)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      // Solo setear si onAuthStateChange no lo hizo ya
+      setSesion(prev => prev !== null ? prev : session)
+      setCargando(false)
     })
     return () => subscription.unsubscribe()
   }, [])
