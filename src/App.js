@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
 import { QRCodeCanvas as QRCode } from 'qrcode.react'
+import PortalApoderado from './PortalApoderado'
 
 // Inyecta Google Fonts (Inter + Sora) en el <head> si no está presente
 ;(function injectFonts() {
@@ -27,7 +28,7 @@ const IC = {
   logout:     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M6 2.5H3a1 1 0 00-1 1v9a1 1 0 001 1h3"/><path d="M11 11l3-3-3-3M14 8H6"/></svg>,
   email:      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="#0F2044" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="4" y="10" width="36" height="24" rx="3"/><path d="M4 13l18 13L40 13"/></svg>,
   check:      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="#1A8A4A" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><circle cx="22" cy="22" r="18"/><path d="M13 22l7 7 11-14"/></svg>,
-  bus:        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true"><rect x="3" y="8" width="30" height="20" rx="3" fill="#0F2044"/><rect x="5" y="10" width="8" height="6" rx="1" fill="#F5C400"/><rect x="15" y="10" width="8" height="6" rx="1" fill="#F5C400"/><rect x="25" y="10" width="6" height="6" rx="1" fill="#F5C400"/><rect x="3" y="24" width="30" height="4" rx="1" fill="#0F2044"/><circle cx="9" cy="29" r="3" fill="#263F6B" stroke="#F5C400" strokeWidth="1.5"/><circle cx="27" cy="29" r="3" fill="#263F6B" stroke="#F5C400" strokeWidth="1.5"/><rect x="5" y="19" width="26" height="3" rx="1" fill="#F5C400" opacity=".3"/><path d="M3 16h30" stroke="#F5C400" strokeWidth=".8" opacity=".4"/></svg>,
+  bus:        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true"><rect x="3" y="8" width="30" height="20" rx="3" fill="#F5C400"/><rect x="5" y="10" width="8" height="6" rx="1" fill="#0F2044"/><rect x="15" y="10" width="8" height="6" rx="1" fill="#0F2044"/><rect x="25" y="10" width="6" height="6" rx="1" fill="#0F2044"/><rect x="3" y="24" width="30" height="4" rx="1" fill="#D4A800"/><circle cx="9" cy="29" r="3" fill="#0F2044" stroke="#F5C400" strokeWidth="1.5"/><circle cx="27" cy="29" r="3" fill="#0F2044" stroke="#F5C400" strokeWidth="1.5"/><rect x="5" y="19" width="26" height="3" rx="1" fill="#0F2044" opacity=".2"/></svg>,
   busLarge:   <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="4" y="10" width="40" height="26" rx="4" fill="#0F2044"/><rect x="6" y="13" width="10" height="8" rx="1.5" fill="#F5C400"/><rect x="19" y="13" width="10" height="8" rx="1.5" fill="#F5C400"/><rect x="32" y="13" width="10" height="8" rx="1.5" fill="#F5C400"/><rect x="4" y="32" width="40" height="4" rx="1" fill="#0F2044"/><circle cx="12" cy="38" r="4" fill="#263F6B" stroke="#F5C400" strokeWidth="2"/><circle cx="36" cy="38" r="4" fill="#263F6B" stroke="#F5C400" strokeWidth="2"/><rect x="6" y="24" width="36" height="4" rx="1" fill="#F5C400" opacity=".25"/><path d="M4 22h40" stroke="#F5C400" strokeWidth="1" opacity=".4"/></svg>,
   lock:       <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="#0F2044" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="8" y="20" width="28" height="18" rx="3"/><path d="M14 20v-6a8 8 0 0116 0v6"/><circle cx="22" cy="30" r="2" fill="#0F2044"/></svg>,
   warn:       <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 4L38 34H2L20 4z" fill="#FEF3C7" stroke="#B45309" strokeWidth="2"/><path d="M20 16v8" stroke="#B45309" strokeWidth="2.5" strokeLinecap="round"/><circle cx="20" cy="28" r="1.5" fill="#B45309"/></svg>,
@@ -208,6 +209,23 @@ function Alumnos() {
   const eliminar     = async (id) => { if (!window.confirm('¿Eliminar este alumno?')) return; await supabase.from('alumnos').delete().eq('id', id); cargar() }
   const toggleActivo = async (al)  => { await supabase.from('alumnos').update({ activo: !al.activo }).eq('id', al.id); cargar() }
 
+  const copiarLinkInvitacion = async (al) => {
+    // Genera key si no tiene
+    let key = al.alumno_key
+    if (!key) {
+      key = crypto.randomUUID().replace(/-/g,'').substring(0,16)
+      await supabase.from('alumnos').update({ alumno_key: key }).eq('id', al.id)
+    }
+    const base = process.env.REACT_APP_PORTAL_URL || `${window.location.origin}/portal`
+    const link = `${base}?key=${key}&modo=registro`
+    try {
+      await navigator.clipboard.writeText(link)
+      alert('✅ Link copiado al portapapeles')
+    } catch {
+      prompt('Copia este link:', link)
+    }
+  }
+
   return (
     <div style={s.vista}>
       <div style={s.vistaHeader}>
@@ -238,7 +256,7 @@ function Alumnos() {
         </div>
       ) : (
         <div style={s.tabla} role="table" aria-label="Lista de alumnos">
-          <div style={{ ...s.tablaHead, gridTemplateColumns: '1fr 1fr 100px 90px 80px' }} role="row">
+          <div style={{ ...s.tablaHead, gridTemplateColumns: '1fr 1fr 100px 90px 110px' }} role="row">
             <span role="columnheader">Nombre</span>
             <span role="columnheader">Apoderado</span>
             <span role="columnheader">Monto</span>
@@ -246,7 +264,7 @@ function Alumnos() {
             <span role="columnheader" aria-label="Acciones" />
           </div>
           {lista.map(al => (
-            <div key={al.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 100px 90px 80px', opacity: al.activo ? 1 : 0.55 }} role="row">
+            <div key={al.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 100px 90px 110px', opacity: al.activo ? 1 : 0.55 }} role="row">
               <span style={s.celNombre} role="cell">{al.nombre}</span>
               <span style={s.cel} role="cell">{al.apoderados?.nombre || '—'}</span>
               <span style={s.cel} role="cell">${Number(al.monto).toLocaleString('es-CL')}</span>
@@ -261,6 +279,7 @@ function Alumnos() {
                 </button>
               </span>
               <span style={s.celAcciones} role="cell">
+                <button className="btn-icon" style={{ ...s.btnIcono, color: '#0F2044' }} onClick={() => copiarLinkInvitacion(al)} aria-label={`Copiar link invitación ${al.nombre}`} title="Copiar link portal apoderado">{IC.link}</button>
                 <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(al)} aria-label={`Editar ${al.nombre}`}>{IC.edit}</button>
                 <button className="btn-icon" style={{ ...s.btnIcono, color: '#C0202F' }} onClick={() => eliminar(al.id)} aria-label={`Eliminar ${al.nombre}`}>{IC.trash}</button>
               </span>
@@ -307,6 +326,18 @@ function mesLabel(mesStr) {
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
 }
 
+// Genera lista de meses entre dos YYYY-MM (inclusive)
+function mesesEntre(desde, hasta) {
+  const meses = []
+  let [y, m] = desde.split('-').map(Number)
+  const [yh, mh] = hasta.split('-').map(Number)
+  while (y < yh || (y === yh && m <= mh)) {
+    meses.push(`${y}-${String(m).padStart(2, '0')}`)
+    m++; if (m > 12) { m = 1; y++ }
+  }
+  return meses
+}
+
 function Cobros() {
   const ahora  = new Date()
   const mesHoy = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}`
@@ -316,10 +347,14 @@ function Cobros() {
   const [cargando, setCargando]   = useState(true)
   const [generando, setGenerando] = useState(false)
   const [msg, setMsg]             = useState('')
-  const [editando, setEditando]   = useState(null)   // { id, monto }
+  const [editando, setEditando]   = useState(null)
   const [montoEdit, setMontoEdit] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [pagandoFlow, setPagandoFlow] = useState(new Set())  // IDs en proceso Flow
+  const [pagandoFlow, setPagandoFlow] = useState(new Set())
+  // Multi-mes
+  const [modoMulti, setModoMulti] = useState(false)
+  const [mesDesde, setMesDesde]   = useState(mesHoy)
+  const [mesHasta, setMesHasta]   = useState(mesHoy)
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -330,7 +365,7 @@ function Cobros() {
       .select('*, alumnos(nombre, monto, apoderados(nombre))')
       .gte('mes', desde)
       .lte('mes', hasta)
-      .order('pagado')
+      .order('estado')
       .order('created_at')
     setLista(data || [])
     setCargando(false)
@@ -347,27 +382,44 @@ function Cobros() {
       setGenerando(false)
       return
     }
-    const mesDate = `${mes}-01`
-    const { data: existentes } = await supabase.from('cobros').select('alumno_id').eq('mes', mesDate)
-    const yaExisten = new Set((existentes || []).map(c => c.alumno_id))
-    const nuevos = alumnos
-      .filter(a => !yaExisten.has(a.id))
-      .map(a => ({ user_id: user.id, alumno_id: a.id, mes: mesDate, monto: a.monto, pagado: false }))
-    if (nuevos.length === 0) {
-      setMsg('Los cobros de este mes ya fueron generados.')
-      setGenerando(false)
-      return
+
+    // Determinar qué meses generar
+    const meses = modoMulti ? mesesEntre(mesDesde, mesHasta) : [mes]
+    if (meses.length === 0) { setMsg('Rango de meses inválido.'); setGenerando(false); return }
+
+    let totalGenerados = 0
+    let totalExistentes = 0
+
+    for (const m of meses) {
+      const mesDate = `${m}-01`
+      const { data: existentes } = await supabase.from('cobros').select('alumno_id').eq('mes', mesDate)
+      const yaExisten = new Set((existentes || []).map(c => c.alumno_id))
+      const nuevos = alumnos
+        .filter(a => !yaExisten.has(a.id))
+        .map(a => ({ user_id: user.id, alumno_id: a.id, mes: mesDate, monto: a.monto, estado: 'pendiente' }))
+      if (nuevos.length > 0) {
+        await supabase.from('cobros').insert(nuevos)
+        totalGenerados += nuevos.length
+      } else {
+        totalExistentes++
+      }
     }
-    await supabase.from('cobros').insert(nuevos)
-    setMsg(`✅ ${nuevos.length} cobro(s) generado(s).`)
+
+    if (totalGenerados === 0) {
+      setMsg(`Los cobros de ${meses.length === 1 ? 'este mes' : 'esos meses'} ya fueron generados.`)
+    } else {
+      const extra = totalExistentes > 0 ? ` (${totalExistentes} mes${totalExistentes > 1 ? 'es' : ''} ya existía)` : ''
+      setMsg(`✅ ${totalGenerados} cobro(s) generado(s) en ${meses.length} mes(es).${extra}`)
+    }
     setGenerando(false)
     cargar()
   }
 
   const togglePagado = async (cobro) => {
+    const nuevo = cobro.estado === 'pagado' ? 'pendiente' : 'pagado'
     await supabase.from('cobros').update({
-      pagado: !cobro.pagado,
-      pagado_at: !cobro.pagado ? new Date().toISOString() : null,
+      estado:    nuevo,
+      pagado_at: nuevo === 'pagado' ? new Date().toISOString() : null,
     }).eq('id', cobro.id)
     cargar()
   }
@@ -418,7 +470,7 @@ function Cobros() {
   }
 
   const totalMes       = lista.reduce((acc, c) => acc + Number(c.monto), 0)
-  const totalPagado    = lista.filter(c => c.pagado).reduce((acc, c) => acc + Number(c.monto), 0)
+  const totalPagado    = lista.filter(c => c.estado === 'pagado').reduce((acc, c) => acc + Number(c.monto), 0)
   const totalPendiente = totalMes - totalPagado
 
   return (
@@ -455,18 +507,59 @@ function Cobros() {
       <div style={s.vistaHeader}>
         <h2 style={s.vtitulo}>Cobros</h2>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <label htmlFor="sel-mes" style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>Mes:</label>
+          {/* Selector de mes para visualizar */}
+          <label htmlFor="sel-mes" style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>Ver mes:</label>
           <input
             id="sel-mes"
             type="month"
             style={{ ...s.input, padding: '7px 10px', fontSize: 13 }}
             value={mes}
             onChange={e => setMes(e.target.value)}
-            aria-label="Seleccionar mes"
+            aria-label="Seleccionar mes a visualizar"
           />
-          <button style={s.btnPrimario} onClick={generar} disabled={generando} aria-label="Generar cobros del mes">
-            {generando ? 'Generando…' : 'Generar mes'}
+          {/* Toggle modo multi-mes */}
+          <button
+            onClick={() => setModoMulti(v => !v)}
+            style={{ ...s.btnSecundario, fontSize: 12, padding: '6px 12px', background: modoMulti ? '#EBF2FF' : undefined, color: modoMulti ? '#0F2044' : undefined, fontWeight: modoMulti ? 700 : 500 }}
+            aria-pressed={modoMulti}
+            aria-label="Generar múltiples meses"
+          >
+            {modoMulti ? '▲ Un mes' : '▼ Varios meses'}
           </button>
+        </div>
+
+        {/* Panel generar — se expande al activar multi-mes */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+          {modoMulti ? (
+            <>
+              <label htmlFor="gen-desde" style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>Desde:</label>
+              <input
+                id="gen-desde"
+                type="month"
+                style={{ ...s.input, padding: '7px 10px', fontSize: 13 }}
+                value={mesDesde}
+                onChange={e => setMesDesde(e.target.value)}
+                aria-label="Mes inicial para generación"
+              />
+              <label htmlFor="gen-hasta" style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>Hasta:</label>
+              <input
+                id="gen-hasta"
+                type="month"
+                style={{ ...s.input, padding: '7px 10px', fontSize: 13 }}
+                value={mesHasta}
+                min={mesDesde}
+                onChange={e => setMesHasta(e.target.value)}
+                aria-label="Mes final para generación"
+              />
+              <button style={s.btnPrimario} onClick={generar} disabled={generando || mesHasta < mesDesde} aria-label="Generar cobros del rango de meses">
+                {generando ? 'Generando…' : `Generar ${mesesEntre(mesDesde, mesHasta).length} mes(es)`}
+              </button>
+            </>
+          ) : (
+            <button style={s.btnPrimario} onClick={generar} disabled={generando} aria-label="Generar cobros del mes">
+              {generando ? 'Generando…' : 'Generar mes'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -478,16 +571,16 @@ function Cobros() {
 
       {!cargando && lista.length > 0 && (
         <div style={s.resumenRow}>
-          <div style={s.resumenCard}>
-            <span style={s.resumenLabel}>Total mes</span>
-            <span style={s.resumenValor}>${totalMes.toLocaleString('es-CL')}</span>
+          <div style={{ ...s.resumenCard, background: '#0F2044', minWidth: 160 }}>
+            <span style={{ ...s.resumenLabel, color: '#a8c0dd' }}>Total mes</span>
+            <span style={{ ...s.resumenValor, color: '#fff' }}>${totalMes.toLocaleString('es-CL')}</span>
           </div>
-          <div style={{ ...s.resumenCard, background: '#dcfce7' }}>
-            <span style={s.resumenLabel}>Pagado</span>
+          <div style={{ ...s.resumenCard, background: '#dcfce7', border: '1px solid #bbf7d0' }}>
+            <span style={{ ...s.resumenLabel, color: '#166534' }}>Pagado</span>
             <span style={{ ...s.resumenValor, color: '#16a34a' }}>${totalPagado.toLocaleString('es-CL')}</span>
           </div>
-          <div style={{ ...s.resumenCard, background: '#fef9c3' }}>
-            <span style={s.resumenLabel}>Pendiente</span>
+          <div style={{ ...s.resumenCard, background: '#fef9c3', border: '1px solid #fde68a' }}>
+            <span style={{ ...s.resumenLabel, color: '#92400e' }}>Pendiente</span>
             <span style={{ ...s.resumenValor, color: '#b45309' }}>${totalPendiente.toLocaleString('es-CL')}</span>
           </div>
         </div>
@@ -509,7 +602,7 @@ function Cobros() {
           <span style={{ display: 'inline-flex', marginBottom: 12, color: '#8A96AA' }}>{IC.cobros}</span>
           <p>
             No hay cobros para <strong>{mesLabel(mes)}</strong>.<br />
-            Presiona <em>Generar mes</em> para crearlos.
+            Presiona <em>{modoMulti ? 'Generar mes(es)' : 'Generar mes'}</em> para crearlos.
           </p>
         </div>
       ) : (
@@ -523,18 +616,23 @@ function Cobros() {
             <span role="columnheader">Cobrar</span>
           </div>
           {lista.map(c => (
-            <div key={c.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 130px 110px 90px 110px', opacity: c.pagado ? 0.9 : 1 }} role="row">
+            <div key={c.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 130px 110px 90px 110px', opacity: c.estado === 'pagado' ? 0.85 : 1 }} role="row">
               <span style={s.celNombre} role="cell">{c.alumnos?.nombre || '—'}</span>
               <span style={s.cel} role="cell">{c.alumnos?.apoderados?.nombre || '—'}</span>
               <span style={{ ...s.cel, fontWeight: 600 }} role="cell">${Number(c.monto).toLocaleString('es-CL')}</span>
               <span role="cell">
                 <button
                   onClick={() => togglePagado(c)}
-                  style={{ ...s.badge, background: c.pagado ? '#dcfce7' : '#fef9c3', color: c.pagado ? '#16a34a' : '#b45309', cursor: 'pointer', border: 'none' }}
-                  aria-label={c.pagado ? `Marcar pendiente ${c.alumnos?.nombre}` : `Marcar pagado ${c.alumnos?.nombre}`}
-                  aria-pressed={c.pagado}
+                  style={{
+                    ...s.badge, cursor: 'pointer', border: 'none',
+                    background: c.estado === 'pagado' ? '#dcfce7' : c.estado === 'anulado' ? '#fee2e2' : '#fef9c3',
+                    color:      c.estado === 'pagado' ? '#16a34a' : c.estado === 'anulado' ? '#dc2626' : '#b45309',
+                  }}
+                  aria-label={c.estado === 'pagado' ? `Marcar pendiente ${c.alumnos?.nombre}` : `Marcar pagado ${c.alumnos?.nombre}`}
+                  aria-pressed={c.estado === 'pagado'}
+                  disabled={c.estado === 'anulado'}
                 >
-                  {c.pagado ? '✓ Pagado' : 'Pendiente'}
+                  {c.estado === 'pagado' ? '✓ Pagado' : c.estado === 'anulado' ? 'Anulado' : 'Pendiente'}
                 </button>
               </span>
               <span role="cell">
@@ -545,7 +643,7 @@ function Cobros() {
                 >Editar</button>
               </span>
               <span role="cell">
-                {!c.pagado ? (
+                {c.estado !== 'pagado' && c.estado !== 'anulado' ? (
                   <button
                     onClick={() => cobrarFlow(c)}
                     disabled={pagandoFlow.has(c.id)}
@@ -566,13 +664,23 @@ function Cobros() {
 
 // ─── Rutas ────────────────────────────────────────────────────────────────────
 function Rutas() {
-  const [lista, setLista] = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({})
-  const [editId, setEditId] = useState(null)
-  const [token, setToken] = useState(null)
-  const [copiado, setCopiado] = useState(false)
+  const [lista, setLista]                 = useState([])
+  const [cargando, setCargando]           = useState(true)
+  const [modal, setModal]                 = useState(false)
+  const [form, setForm]                   = useState({})
+  const [editId, setEditId]               = useState(null)
+  const [token, setToken]                 = useState(null)
+  const [copiado, setCopiado]             = useState(false)
+  // Estado para panel de alumnos por ruta
+  const [rutaExpandida, setRutaExpandida] = useState(null)
+  const [rutaAlumnos, setRutaAlumnos]     = useState({})    // { rutaId: [{id,nombre,orden,direccion_parada,ruta_alumno_id}] }
+  const [cargandoAlumnos, setCargandoAl]  = useState({})
+  // Modal agregar alumno a ruta
+  const [modalAlumno, setModalAlumno]     = useState(null)  // rutaId activo
+  const [alumnosDisponibles, setAlumnosD] = useState([])
+  const [formAlumno, setFormAlumno]       = useState({ alumno_id: '', direccion_parada: '', referencia: '' })
+  const [guardandoAlumno, setGuardandoAl] = useState(false)
+  const [errorAlumno, setErrorAlumno]     = useState('')
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -585,6 +693,90 @@ function Rutas() {
     setToken(inv && inv.length > 0 ? inv[0].token : null)
     setCargando(false)
   }, [])
+
+  // Cargar alumnos de una ruta específica
+  const cargarAlumnosDeRuta = useCallback(async (rutaId) => {
+    setCargandoAl(prev => ({ ...prev, [rutaId]: true }))
+    const { data } = await supabase
+      .from('ruta_alumnos')
+      .select('id, orden, direccion_parada, referencia, alumnos(id, nombre)')
+      .eq('ruta_id', rutaId)
+      .eq('activo', true)
+      .order('orden')
+    const mapped = (data || []).map(ra => ({
+      ruta_alumno_id: ra.id,
+      id:              ra.alumnos.id,
+      nombre:          ra.alumnos.nombre,
+      orden:           ra.orden,
+      direccion_parada: ra.direccion_parada || '',
+    }))
+    setRutaAlumnos(prev => ({ ...prev, [rutaId]: mapped }))
+    setCargandoAl(prev => ({ ...prev, [rutaId]: false }))
+    return mapped
+  }, [])
+
+  const toggleExpandida = async (rutaId) => {
+    if (rutaExpandida === rutaId) {
+      setRutaExpandida(null)
+    } else {
+      setRutaExpandida(rutaId)
+      if (!rutaAlumnos[rutaId]) await cargarAlumnosDeRuta(rutaId)
+    }
+  }
+
+  // Abrir modal para agregar alumno
+  const abrirModalAlumno = async (rutaId) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    // Traer alumnos que aún no están en esta ruta
+    const yaEnRuta = (rutaAlumnos[rutaId] || []).map(a => a.id)
+    const { data } = await supabase.from('alumnos').select('id, nombre').eq('user_id', user.id).eq('activo', true).order('nombre')
+    setAlumnosD((data || []).filter(a => !yaEnRuta.includes(a.id)))
+    setFormAlumno({ alumno_id: '', direccion_parada: '', referencia: '' })
+    setErrorAlumno('')
+    setModalAlumno(rutaId)
+  }
+
+  const agregarAlumnoARuta = async (e) => {
+    e.preventDefault()
+    if (!formAlumno.alumno_id) { setErrorAlumno('Selecciona un alumno'); return }
+    setGuardandoAl(true); setErrorAlumno('')
+    const ordenActual = (rutaAlumnos[modalAlumno] || []).length + 1
+    const { error } = await supabase.from('ruta_alumnos').insert({
+      ruta_id:          modalAlumno,
+      alumno_id:        formAlumno.alumno_id,
+      orden:            ordenActual,
+      direccion_parada: formAlumno.direccion_parada || null,
+      referencia:       formAlumno.referencia || null,
+    })
+    if (error) {
+      setErrorAlumno(error.code === '23505' ? 'Este alumno ya está en la ruta' : 'Error al agregar')
+      setGuardandoAl(false)
+      return
+    }
+    await cargarAlumnosDeRuta(modalAlumno)
+    setGuardandoAl(false)
+    setModalAlumno(null)
+  }
+
+  const quitarAlumnoDeRuta = async (rutaAlumnoId) => {
+    if (!window.confirm('¿Quitar este alumno de la ruta?')) return
+    await supabase.from('ruta_alumnos').update({ activo: false }).eq('id', rutaAlumnoId)
+    // Refrescar la ruta expandida
+    if (rutaExpandida) await cargarAlumnosDeRuta(rutaExpandida)
+  }
+
+  const moverAlumno = async (rutaId, idx, dir) => {
+    const arr = [...(rutaAlumnos[rutaId] || [])]
+    const nuevo = idx + dir
+    if (nuevo < 0 || nuevo >= arr.length) return
+    // Intercambiar órdenes
+    const [a, b] = [arr[idx], arr[nuevo]]
+    await Promise.all([
+      supabase.from('ruta_alumnos').update({ orden: b.orden }).eq('id', a.ruta_alumno_id),
+      supabase.from('ruta_alumnos').update({ orden: a.orden }).eq('id', b.ruta_alumno_id),
+    ])
+    await cargarAlumnosDeRuta(rutaId)
+  }
 
   useEffect(() => { cargar() }, [cargar])
 
@@ -699,31 +891,112 @@ function Rutas() {
           <p>Aún no tienes rutas registradas.<br />Agrega los colegios a los que haces transporte.</p>
         </div>
       ) : (
-        <div style={s.tabla} role="table" aria-label="Rutas">
-          <div style={{ ...s.tablaHead, gridTemplateColumns: '1.5fr 1.5fr 80px 80px 90px 70px' }} role="row">
-            <span role="columnheader">Colegio</span>
-            <span role="columnheader">Dirección</span>
-            <span role="columnheader">Ida</span>
-            <span role="columnheader">Vuelta</span>
-            <span role="columnheader">Capacidad</span>
-            <span role="columnheader" aria-label="Acciones" />
-          </div>
-          {lista.map(r => (
-            <div key={r.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1.5fr 1.5fr 80px 80px 90px 70px' }} role="row">
-              <span style={s.celNombre} role="cell">{r.nombre}</span>
-              <span style={s.cel} role="cell">{r.direccion || '—'}</span>
-              <span style={s.cel} role="cell">{r.horario_ida || '—'}</span>
-              <span style={s.cel} role="cell">{r.horario_vuelta || '—'}</span>
-              <span style={s.cel} role="cell">{r.capacidad} cupos</span>
-              <span style={s.celAcciones} role="cell">
-                <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(r)} aria-label={`Editar ruta ${r.nombre}`}>{IC.edit}</button>
-                <button className="btn-icon" style={{ ...s.btnIcono, color: '#C0202F' }} onClick={() => eliminar(r.id)} aria-label={`Eliminar ruta ${r.nombre}`}>{IC.trash}</button>
-              </span>
-            </div>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {lista.map(r => {
+            const expandida = rutaExpandida === r.id
+            const ralumnos  = rutaAlumnos[r.id] || []
+            return (
+              <div key={r.id} style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,.07)', overflow: 'hidden' }}>
+                {/* Fila principal */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 140 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#0F2044' }}>{r.nombre}</div>
+                    {r.direccion && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{r.direccion}</div>}
+                    {(r.horario_ida || r.horario_vuelta) && (
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+                        {r.horario_ida && `Ida ${r.horario_ida}`}{r.horario_ida && r.horario_vuelta && ' · '}{r.horario_vuelta && `Vuelta ${r.horario_vuelta}`}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                    <button
+                      onClick={() => toggleExpandida(r.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1.5px solid #E2E8F0', background: expandida ? '#EDF1F9' : '#fff', color: '#0F2044', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
+                      aria-expanded={expandida}
+                      aria-label={`${expandida ? 'Ocultar' : 'Ver'} alumnos de ${r.nombre}`}
+                    >
+                      {IC.alumnos}
+                      <span>{ralumnos.length > 0 ? `${ralumnos.length} alumno${ralumnos.length !== 1 ? 's' : ''}` : 'Alumnos'}</span>
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ transform: expandida ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} aria-hidden="true"><path d="M2 4l4 4 4-4"/></svg>
+                    </button>
+                    <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(r)} aria-label={`Editar ruta ${r.nombre}`}>{IC.edit}</button>
+                    <button className="btn-icon" style={{ ...s.btnIcono, color: '#C0202F' }} onClick={() => eliminar(r.id)} aria-label={`Eliminar ruta ${r.nombre}`}>{IC.trash}</button>
+                  </div>
+                </div>
+
+                {/* Panel de alumnos (expandible) */}
+                {expandida && (
+                  <div style={{ borderTop: '1px solid #F1F5F9', padding: '14px 16px', background: '#FAFBFE' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: .5 }}>
+                        Orden de paradas
+                      </p>
+                      <button
+                        onClick={() => abrirModalAlumno(r.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: '1.5px solid #0F2044', background: 'transparent', color: '#0F2044', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
+                        aria-label={`Agregar alumno a ${r.nombre}`}
+                      >
+                        + Agregar alumno
+                      </button>
+                    </div>
+
+                    {cargandoAlumnos[r.id] ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {[1,2].map(i => <Skeleton key={i} w="100%" h={40} r={8} />)}
+                      </div>
+                    ) : ralumnos.length === 0 ? (
+                      <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '12px 0' }}>
+                        Sin alumnos asignados. Agrega uno para poder usar el Ruteo.
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {ralumnos.map((ra, idx) => (
+                          <div key={ra.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: '#fff', borderRadius: 9, border: '1px solid #E8EDF5' }}>
+                            {/* Controles de orden */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                              <button
+                                onClick={() => moverAlumno(r.id, idx, -1)}
+                                disabled={idx === 0}
+                                style={{ padding: '2px 5px', border: '1px solid #e2e8f0', borderRadius: 4, background: idx === 0 ? '#f8fafc' : '#fff', color: idx === 0 ? '#cbd5e1' : '#475569', cursor: idx === 0 ? 'default' : 'pointer', lineHeight: 1 }}
+                                aria-label="Subir en el orden"
+                              >▲</button>
+                              <button
+                                onClick={() => moverAlumno(r.id, idx, 1)}
+                                disabled={idx === ralumnos.length - 1}
+                                style={{ padding: '2px 5px', border: '1px solid #e2e8f0', borderRadius: 4, background: idx === ralumnos.length - 1 ? '#f8fafc' : '#fff', color: idx === ralumnos.length - 1 ? '#cbd5e1' : '#475569', cursor: idx === ralumnos.length - 1 ? 'default' : 'pointer', lineHeight: 1 }}
+                                aria-label="Bajar en el orden"
+                              >▼</button>
+                            </div>
+                            {/* Número de parada */}
+                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#0F2044', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                              {ra.orden}
+                            </div>
+                            {/* Info alumno */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: 13, color: '#0F2044', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ra.nombre}</div>
+                              {ra.direccion_parada && <div style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ra.direccion_parada}</div>}
+                            </div>
+                            {/* Quitar */}
+                            <button
+                              onClick={() => quitarAlumnoDeRuta(ra.ruta_alumno_id)}
+                              style={{ padding: '4px 8px', border: 'none', borderRadius: 6, background: '#FFF1F2', color: '#C0202F', cursor: 'pointer', fontSize: 12, fontWeight: 600, flexShrink: 0 }}
+                              aria-label={`Quitar ${ra.nombre} de la ruta`}
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
+      {/* Modal ruta */}
       {modal && (
         <div style={s.modalFondo} role="dialog" aria-modal="true" aria-label={editId ? 'Editar ruta' : 'Nueva ruta'} onClick={e => { if (e.target === e.currentTarget) cerrar() }}>
           <div style={s.modalCard}>
@@ -748,6 +1021,54 @@ function Rutas() {
               <div style={s.modalBtns}>
                 <button type="button" style={s.btnSecundario} onClick={cerrar}>Cancelar</button>
                 <button type="submit" style={s.btnPrimario}>{editId ? 'Guardar cambios' : 'Agregar ruta'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal agregar alumno a ruta */}
+      {modalAlumno && (
+        <div style={s.modalFondo} role="dialog" aria-modal="true" aria-label="Agregar alumno a ruta" onClick={e => { if (e.target === e.currentTarget) setModalAlumno(null) }}>
+          <div style={s.modalCard}>
+            <h3 style={s.modalTitulo}>Agregar alumno a ruta</h3>
+            <form onSubmit={agregarAlumnoARuta} style={s.form} noValidate>
+              <label style={s.label} htmlFor="ma-alumno">Alumno <span aria-hidden="true" style={{ color: '#dc2626' }}>*</span></label>
+              <select
+                id="ma-alumno"
+                style={s.input}
+                value={formAlumno.alumno_id}
+                onChange={e => setFormAlumno(f => ({ ...f, alumno_id: e.target.value }))}
+                required
+                autoFocus
+              >
+                <option value="">— Seleccionar alumno —</option>
+                {alumnosDisponibles.map(a => (
+                  <option key={a.id} value={a.id}>{a.nombre}</option>
+                ))}
+              </select>
+              <label style={s.label} htmlFor="ma-dir">Dirección de parada</label>
+              <input
+                id="ma-dir"
+                style={s.input}
+                placeholder="Ej: Calle Los Robles 45"
+                value={formAlumno.direccion_parada}
+                onChange={e => setFormAlumno(f => ({ ...f, direccion_parada: e.target.value }))}
+                maxLength={200}
+              />
+              <label style={s.label} htmlFor="ma-ref">Referencia (opcional)</label>
+              <input
+                id="ma-ref"
+                style={s.input}
+                placeholder="Ej: Frente al kiosko azul"
+                value={formAlumno.referencia}
+                onChange={e => setFormAlumno(f => ({ ...f, referencia: e.target.value }))}
+                maxLength={200}
+              />
+              {errorAlumno && <p style={s.errorMsg} role="alert">{errorAlumno}</p>}
+              <div style={s.modalBtns}>
+                <button type="button" style={s.btnSecundario} onClick={() => setModalAlumno(null)}>Cancelar</button>
+                <button type="submit" style={s.btnPrimario} disabled={guardandoAlumno}>{guardandoAlumno ? 'Agregando…' : 'Agregar'}</button>
               </div>
             </form>
           </div>
@@ -1104,15 +1425,772 @@ function Home({ onNavegar }) {
   )
 }
 
+// ─── Ruteo guiado ─────────────────────────────────────────────────────────────
+// Flujo completo: seleccionar ruta → iniciar viaje → cards secuenciales →
+// Subió (notifica apoderado, avanza) / Saltó (salta sin notificar) →
+// modo entrega → cerrar viaje (notifica entrega a todos).
+
+const IC_bus_subida  = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="1.5" y="6" width="15" height="9" rx="1.5"/><path d="M5 6V4.5a1.5 1.5 0 011.5-1.5h5A1.5 1.5 0 0113 4.5V6"/><circle cx="5" cy="13" r="1"/><circle cx="13" cy="13" r="1"/><path d="M9 3V1m-2 2l2-2 2 2" /></svg>
+const IC_bus_bajada  = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="1.5" y="6" width="15" height="9" rx="1.5"/><path d="M5 6V4.5a1.5 1.5 0 011.5-1.5h5A1.5 1.5 0 0113 4.5V6"/><circle cx="5" cy="13" r="1"/><circle cx="13" cy="13" r="1"/><path d="M9 7v2m-2 0l2 2 2-2" /></svg>
+const IC_play    = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="5,3 15,9 5,15" fill="currentColor" stroke="none"/></svg>
+const IC_check   = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="3,9 7,13 15,5"/></svg>
+const IC_skip    = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 9h8M10 6l3 3-3 3"/></svg>
+const IC_flag    = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 2v14M4 2l10 4-10 4"/></svg>
+
+// Estados de viaje
+const FASE = { SELECCION: 'seleccion', RECOGIDA: 'recogida', ENTREGA: 'entrega', CERRADO: 'cerrado' }
+
+function Ruteo() {
+  const hoy = new Date().toISOString().split('T')[0]
+
+  // ── Estado principal ──────────────────────────────────
+  const [fase,       setFase]      = useState(FASE.SELECCION)
+  const [rutas,      setRutas]     = useState([])
+  const [rutaSel,    setRutaSel]   = useState(null)   // ruta elegida
+  const [tipoViaje,  setTipoViaje] = useState('ida')  // 'ida' | 'vuelta'
+  const [viajeId,    setViajeId]   = useState(null)
+  const [alumnos,    setAlumnos]   = useState([])     // ordenados por ruta_alumnos.orden
+  const [idxActual,  setIdxActual] = useState(0)      // puntero en la lista
+  const [procesados, setProcesados]= useState([])     // { alumno_id, tipo, hora }
+  const [saltados,   setSaltados]  = useState(new Set())
+  const [busy,       setBusy]      = useState(false)
+  const [cargando,   setCargando]  = useState(true)
+  const [msg,        setMsg]       = useState(null)   // { texto, ok }
+  // Para la pantalla de cierre
+  const [resumen,    setResumen]   = useState(null)
+
+  const horaLabel = iso => new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+
+  // ── Cargar rutas del transportista ───────────────────
+  const cargarRutas = useCallback(async () => {
+    setCargando(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('rutas')
+      .select('id, nombre, horario_ida, horario_vuelta')
+      .eq('user_id', user.id)
+      .order('nombre')
+    setRutas(data || [])
+    setCargando(false)
+  }, [])
+
+  // ── Cargar alumnos de una ruta (ordenados) ───────────
+  const cargarAlumnos = useCallback(async (rutaId) => {
+    const { data } = await supabase
+      .from('ruta_alumnos')
+      .select('id, orden, direccion_parada, referencia, alumnos(id, nombre)')
+      .eq('ruta_id', rutaId)
+      .eq('activo', true)
+      .order('orden')
+    return (data || []).map(ra => ({
+      id:        ra.alumnos.id,
+      nombre:    ra.alumnos.nombre,
+      orden:     ra.orden,
+      direccion: ra.direccion_parada || '',
+      referencia: ra.referencia || '',
+    }))
+  }, [])
+
+  useEffect(() => { cargarRutas() }, [cargarRutas])
+
+  // ── Seleccionar ruta e iniciar viaje ─────────────────
+  const iniciarViaje = async () => {
+    if (!rutaSel) return
+    setBusy(true)
+    const al = await cargarAlumnos(rutaSel.id)
+    if (al.length === 0) {
+      setMsg({ texto: 'Esta ruta no tiene alumnos asignados. Ve a Rutas y agrega alumnos primero.', ok: false })
+      setBusy(false)
+      return
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: viaje, error } = await supabase
+      .from('viajes')
+      .insert({ user_id: user.id, ruta_id: rutaSel.id, tipo: tipoViaje, estado: 'en_curso' })
+      .select('id')
+      .single()
+    if (error) {
+      setMsg({ texto: 'Error al iniciar el viaje. Intenta de nuevo.', ok: false })
+      setBusy(false)
+      return
+    }
+    // Emitir evento 'proximo' para el primer alumno (alerta al apoderado para prepararse)
+    await supabase.from('eventos_viaje').insert({
+      user_id: user.id, alumno_id: al[0].id, tipo: 'proximo', viaje_id: viaje.id,
+    })
+    setViajeId(viaje.id)
+    setAlumnos(al)
+    setIdxActual(0)
+    setProcesados([])
+    setSaltados(new Set())
+    setFase(FASE.RECOGIDA)
+    setMsg(null)
+    setBusy(false)
+  }
+
+  // ── Registrar evento para alumno actual ──────────────
+  const registrarEvento = async (tipo) => {
+    const alumno = alumnos[idxActual]
+    if (!alumno) return
+    setBusy(true)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    await supabase.from('eventos_viaje').insert({
+      user_id: user.id, alumno_id: alumno.id, tipo, viaje_id: viajeId,
+    })
+
+    const nuevoProcesados = [...procesados, { alumno_id: alumno.id, nombre: alumno.nombre, tipo, hora: new Date().toISOString() }]
+    setProcesados(nuevoProcesados)
+
+    const siguiente = idxActual + 1
+
+    // Si hay siguiente, emitir 'proximo' para que ese apoderado se prepare
+    if (siguiente < alumnos.length) {
+      await supabase.from('eventos_viaje').insert({
+        user_id: user.id, alumno_id: alumnos[siguiente].id, tipo: 'proximo', viaje_id: viajeId,
+      })
+      setIdxActual(siguiente)
+    } else {
+      // Todos procesados → pasar a fase de entrega
+      setFase(FASE.ENTREGA)
+      setIdxActual(0)
+    }
+    setBusy(false)
+  }
+
+  const saltar = async () => {
+    const alumno = alumnos[idxActual]
+    setSaltados(prev => new Set([...prev, alumno.id]))
+    await registrarEvento('saltado')
+  }
+
+  // ── Modo entrega: registrar 'entregado' uno a uno ────
+  const registrarEntrega = async (alumnoId) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from('eventos_viaje').insert({
+      user_id: user.id, alumno_id: alumnoId, tipo: 'entregado', viaje_id: viajeId,
+    })
+    setProcesados(prev => prev.map(p =>
+      p.alumno_id === alumnoId ? { ...p, entregado: true, hora_entrega: new Date().toISOString() } : p
+    ))
+  }
+
+  // ── Cerrar viaje ─────────────────────────────────────
+  const cerrarViaje = async () => {
+    if (!window.confirm('¿Cerrar el viaje? Se notificará a todos los apoderados.')) return
+    setBusy(true)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // Marcar viaje como completado
+    await supabase.from('viajes').update({ estado: 'completado', cerrado_at: new Date().toISOString() }).eq('id', viajeId)
+
+    // Emitir 'entregado' masivo para alumnos subidos que aún no lo tienen
+    const subidos = procesados.filter(p => p.tipo === 'subida' && !p.entregado)
+    for (const p of subidos) {
+      await supabase.from('eventos_viaje').insert({
+        user_id: user.id, alumno_id: p.alumno_id, tipo: 'entregado', viaje_id: viajeId,
+      })
+    }
+
+    const nSubidos  = procesados.filter(p => p.tipo === 'subida').length
+    const nSaltados = procesados.filter(p => p.tipo === 'saltado').length
+    setResumen({ nSubidos, nSaltados, total: alumnos.length, ruta: rutaSel.nombre })
+    setFase(FASE.CERRADO)
+    setBusy(false)
+  }
+
+  const reiniciar = () => {
+    setFase(FASE.SELECCION)
+    setRutaSel(null)
+    setViajeId(null)
+    setAlumnos([])
+    setIdxActual(0)
+    setProcesados([])
+    setSaltados(new Set())
+    setResumen(null)
+    setMsg(null)
+    cargarRutas()
+  }
+
+  // ══════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════
+
+  // ── Pantalla 0: Selección de ruta ────────────────────
+  if (fase === FASE.SELECCION) {
+    return (
+      <div style={s.vista}>
+        <div style={s.vistaHeader}>
+          <h2 style={s.vtitulo}>Ruteo</h2>
+          <span style={{ fontSize: 12, color: '#64748b', background: '#f1f5f9', padding: '4px 10px', borderRadius: 20, fontWeight: 500 }}>
+            {new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </span>
+        </div>
+
+        {msg && (
+          <div style={{ background: msg.ok ? '#dcfce7' : '#fef2f2', border: `1px solid ${msg.ok ? '#86efac' : '#fecaca'}`, borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: msg.ok ? '#166534' : '#991b1b' }} role="alert">
+            {msg.texto}
+          </div>
+        )}
+
+        {cargando ? (
+          <div style={s.skeletonWrap} aria-busy="true">
+            {[1,2,3].map(i => <div key={i} style={{ ...s.skeletonFila, marginBottom: 12 }}><Skeleton w="100%" h={64} r={12} /></div>)}
+          </div>
+        ) : rutas.length === 0 ? (
+          <div style={s.vacio}>
+            <span style={{ display: 'inline-flex', marginBottom: 12, color: '#8A96AA' }}>{IC.rutas}</span>
+            <p style={{ marginBottom: 8 }}>No tienes rutas configuradas.</p>
+            <p style={{ fontSize: 12, color: '#94a3b8' }}>Ve a <strong>Rutas</strong> para crear una y asignar alumnos.</p>
+          </div>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>Selecciona la ruta que vas a realizar hoy:</p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+              {rutas.map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => setRutaSel(r)}
+                  style={{
+                    textAlign: 'left', padding: '14px 18px', borderRadius: 12, border: `2px solid ${rutaSel?.id === r.id ? '#0F2044' : '#e2e8f0'}`,
+                    background: rutaSel?.id === r.id ? '#EDF1F9' : '#fff',
+                    cursor: 'pointer', transition: 'all .15s',
+                    boxShadow: rutaSel?.id === r.id ? '0 0 0 3px rgba(15,32,68,.12)' : '0 1px 3px rgba(0,0,0,.06)',
+                  }}
+                  aria-pressed={rutaSel?.id === r.id}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 15, color: '#0F2044', marginBottom: 4 }}>{r.nombre}</div>
+                  {(r.horario_ida || r.horario_vuelta) && (
+                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                      {r.horario_ida && `Ida: ${r.horario_ida}`}
+                      {r.horario_ida && r.horario_vuelta && '  ·  '}
+                      {r.horario_vuelta && `Vuelta: ${r.horario_vuelta}`}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {rutaSel && (
+              <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
+                {['ida', 'vuelta'].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTipoViaje(t)}
+                    style={{ padding: '8px 20px', borderRadius: 8, border: `2px solid ${tipoViaje === t ? '#F5C400' : '#e2e8f0'}`, background: tipoViaje === t ? '#FFF9E0' : '#fff', fontWeight: 600, fontSize: 13, color: tipoViaje === t ? '#0F2044' : '#64748b', cursor: 'pointer', textTransform: 'capitalize' }}
+                    aria-pressed={tipoViaje === t}
+                  >
+                    {t === 'ida' ? '↑ Ida' : '↓ Vuelta'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={iniciarViaje}
+              disabled={!rutaSel || busy}
+              style={{ ...s.btnPrimario, display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, padding: '12px 28px', opacity: (!rutaSel || busy) ? .5 : 1 }}
+            >
+              {IC_play} {busy ? 'Iniciando…' : 'Iniciar viaje'}
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // ── Pantalla 1: Recogida secuencial ──────────────────
+  if (fase === FASE.RECOGIDA) {
+    const alumno  = alumnos[idxActual]
+    const total   = alumnos.length
+    const progreso= Math.round((idxActual / total) * 100)
+
+    return (
+      <div style={s.vista}>
+        {/* Header con ruta y progreso */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div>
+            <h2 style={{ ...s.vtitulo, marginBottom: 2 }}>{rutaSel.nombre}</h2>
+            <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, textTransform: 'capitalize' }}>{tipoViaje} · Recogida</span>
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#0F2044' }}>{idxActual + 1} / {total}</span>
+        </div>
+
+        {/* Barra de progreso */}
+        <div style={{ height: 6, background: '#E2E8F0', borderRadius: 3, marginBottom: 24, overflow: 'hidden' }} role="progressbar" aria-valuenow={idxActual} aria-valuemax={total}>
+          <div style={{ height: '100%', width: `${progreso}%`, background: '#F5C400', borderRadius: 3, transition: 'width .3s' }} />
+        </div>
+
+        {/* Card del alumno actual */}
+        <div style={{ background: '#0F2044', borderRadius: 16, padding: '28px 24px', color: '#fff', marginBottom: 20, boxShadow: '0 4px 16px rgba(15,32,68,.25)' }}>
+          <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#8AA4C8', marginBottom: 8, fontWeight: 600 }}>
+            Parada {alumno.orden}
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>{alumno.nombre}</div>
+          {alumno.direccion && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, color: '#CBD5E1' }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true"><path d="M7 1a4 4 0 000 8c2.21 0 4-1.79 4-4S9.21 1 7 1z"/><path d="M7 13l-3-5h6l-3 5z"/></svg>
+              <span>{alumno.direccion}</span>
+            </div>
+          )}
+          {alumno.referencia && (
+            <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 6, paddingLeft: 20 }}>{alumno.referencia}</div>
+          )}
+        </div>
+
+        {/* Botones de acción */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+          <button
+            onClick={() => registrarEvento('subida')}
+            disabled={busy}
+            style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 20px', borderRadius: 12, border: 'none', background: busy ? '#bbf7d0' : '#16a34a', color: '#fff', fontWeight: 700, fontSize: 15, cursor: busy ? 'wait' : 'pointer', boxShadow: '0 2px 8px rgba(22,163,74,.25)' }}
+            aria-label={`${alumno.nombre} subió al bus`}
+          >
+            {IC_bus_subida} Subió
+          </button>
+          <button
+            onClick={saltar}
+            disabled={busy}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '14px 16px', borderRadius: 12, border: '2px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: 14, cursor: busy ? 'wait' : 'pointer' }}
+            aria-label={`Saltar a ${alumno.nombre} (ausente)`}
+          >
+            {IC_skip} Saltar
+          </button>
+        </div>
+
+        {/* Mini-historial de procesados */}
+        {procesados.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <p style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: .5 }}>Ya procesados</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {procesados.map((p, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', background: '#f8fafc', borderRadius: 8, fontSize: 13 }}>
+                  <span style={{ color: p.tipo === 'subida' ? '#16a34a' : '#94a3b8' }}>
+                    {p.tipo === 'subida' ? IC_check : IC_skip}
+                  </span>
+                  <span style={{ flex: 1, fontWeight: 500, color: '#374151' }}>{p.nombre}</span>
+                  <span style={{ color: '#94a3b8', fontSize: 12 }}>{p.tipo === 'subida' ? 'Subió' : 'Saltado'}</span>
+                  <span style={{ color: '#cbd5e1', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{horaLabel(p.hora)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Pantalla 2: Entrega ───────────────────────────────
+  if (fase === FASE.ENTREGA) {
+    const subidos = procesados.filter(p => p.tipo === 'subida')
+    const todosEntregados = subidos.every(p => p.entregado)
+
+    return (
+      <div style={s.vista}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div>
+            <h2 style={{ ...s.vtitulo, marginBottom: 2 }}>{rutaSel.nombre}</h2>
+            <span style={{ fontSize: 12, color: '#b45309', fontWeight: 600 }}>Modo entrega</span>
+          </div>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
+            {subidos.filter(p => p.entregado).length} / {subidos.length} {IC_check}
+          </span>
+        </div>
+
+        <div style={{ background: '#FFF9E0', border: '1px solid #F5C400', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13, color: '#7C5A00' }}>
+          Confirma la entrega de cada alumno. Al cerrar el viaje se notifica a todos los apoderados.
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+          {subidos.map(p => (
+            <div key={p.alumno_id} style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: '#0F2044' }}>{p.nombre}</div>
+                {p.entregado && (
+                  <div style={{ fontSize: 12, color: '#16a34a', marginTop: 2 }}>Entregado · {horaLabel(p.hora_entrega)}</div>
+                )}
+              </div>
+              {!p.entregado ? (
+                <button
+                  onClick={() => registrarEntrega(p.alumno_id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#dcfce7', color: '#16a34a', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+                  aria-label={`Marcar entrega de ${p.nombre}`}
+                >
+                  {IC_bus_bajada} Entregado
+                </button>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#16a34a', fontSize: 13, fontWeight: 600 }}>{IC_check} Listo</span>
+              )}
+            </div>
+          ))}
+
+          {procesados.filter(p => p.tipo === 'saltado').length > 0 && (
+            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
+              <p style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 6 }}>No subieron hoy</p>
+              {procesados.filter(p => p.tipo === 'saltado').map(p => (
+                <div key={p.alumno_id} style={{ fontSize: 13, color: '#64748b', padding: '3px 0' }}>{p.nombre}</div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={cerrarViaje}
+          disabled={busy}
+          style={{ ...s.btnPrimario, display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, padding: '13px 28px', background: todosEntregados ? '#0F2044' : '#6b7280', width: '100%', justifyContent: 'center' }}
+          aria-label="Cerrar viaje y notificar a apoderados"
+        >
+          {IC_flag} {busy ? 'Cerrando…' : 'Cerrar viaje'}
+        </button>
+      </div>
+    )
+  }
+
+  // ── Pantalla 3: Resumen final ─────────────────────────
+  if (fase === FASE.CERRADO) {
+    return (
+      <div style={s.vista}>
+        <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: '#16a34a' }}>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="5,16 12,23 27,9"/></svg>
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F2044', marginBottom: 8 }}>Viaje completado</h2>
+          <p style={{ fontSize: 14, color: '#64748b', marginBottom: 28 }}>{resumen?.ruta}</p>
+
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 32, flexWrap: 'wrap' }}>
+            <div style={{ background: '#dcfce7', borderRadius: 12, padding: '16px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#16a34a' }}>{resumen?.nSubidos}</div>
+              <div style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>Alumnos transportados</div>
+            </div>
+            {resumen?.nSaltados > 0 && (
+              <div style={{ background: '#fef9c3', borderRadius: 12, padding: '16px 24px', textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 800, color: '#b45309' }}>{resumen?.nSaltados}</div>
+                <div style={{ fontSize: 12, color: '#92400e', fontWeight: 600 }}>No subieron</div>
+              </div>
+            )}
+          </div>
+
+          <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 24 }}>
+            Los apoderados han sido notificados de la entrega.
+          </p>
+
+          <button onClick={reiniciar} style={{ ...s.btnPrimario, padding: '12px 32px', fontSize: 15 }}>
+            Nuevo viaje
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// Alias para compatibilidad con el render del dashboard (id 'viaje')
+const Viaje = Ruteo
+
 // ─── Menú ─────────────────────────────────────────────────────────────────────
+const IC_perfil = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><circle cx="9" cy="5" r="3"/><path d="M3 16c0-3.31 2.69-5 6-5s6 1.69 6 5"/><path d="M13.5 10.5l1 1 2-2" strokeWidth="1.5"/></svg>
+const IC_ruteo  = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="1.5" y="6" width="15" height="9" rx="1.5"/><path d="M5 6V4.5a1.5 1.5 0 011.5-1.5h5A1.5 1.5 0 0113 4.5V6"/><circle cx="5" cy="13" r="1"/><circle cx="13" cy="13" r="1"/><path d="M6 3h6" strokeWidth="1.5"/><path d="M9 1.5V3"/></svg>
+
+// ─── Bandeja de Solicitudes de Cupo (transportista) ──────────────────────────
+function BandejaSolicitudes() {
+  const [lista, setLista]       = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [detalle, setDetalle]   = useState(null)   // solicitud abierta
+  const [procesando, setProcesando] = useState(false)
+  const [msgDetalle, setMsgDetalle] = useState(null) // { texto, ok }
+  const [filtrando, setFiltrando]   = useState('pendiente') // 'pendiente'|'todas'
+
+  const cargar = useCallback(async () => {
+    setCargando(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('solicitudes_cupo')
+      .select(`
+        id, estado, modalidad, precio_ofertado, nota_apoderado, nota_transportista, created_at,
+        alumno:alumno_id ( nombre ),
+        colegio:colegio_id ( nombre ),
+        apoderado:apoderado_user_id (
+          perfil_apoderado ( nombre, telefono, direccion )
+        )
+      `)
+      .eq('transportista_user_id', user.id)
+      .order('created_at', { ascending: false })
+    setLista(data || [])
+    setCargando(false)
+  }, [])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  // Realtime: nueva solicitud llega en tiempo real
+  useEffect(() => {
+    let channel
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      channel = supabase
+        .channel(`solicitudes-transportista-${user.id}`)
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'solicitudes_cupo',
+            filter: `transportista_user_id=eq.${user.id}` },
+          () => cargar()
+        )
+        .subscribe()
+    })
+    return () => { if (channel) supabase.removeChannel(channel) }
+  }, [cargar])
+
+  async function responder(solicitudId, accion, precio, nota) {
+    setProcesando(true); setMsgDetalle(null)
+    const nuevoEstado = accion === 'aceptar' ? 'aceptada' : 'rechazada'
+    const payload = { estado: nuevoEstado, nota_transportista: nota || null }
+    if (accion === 'aceptar' && precio) payload.precio_ofertado = parseInt(precio)
+    const { error } = await supabase.from('solicitudes_cupo')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', solicitudId)
+    if (error) {
+      setMsgDetalle({ texto: 'Error al procesar. Intenta nuevamente.', ok: false })
+    } else {
+      setMsgDetalle({ texto: accion === 'aceptar' ? 'Solicitud aceptada. El apoderado recibirá tu oferta.' : 'Solicitud rechazada.', ok: true })
+      setDetalle(d => d ? { ...d, estado: nuevoEstado } : d)
+      await cargar()
+    }
+    setProcesando(false)
+  }
+
+  const LABEL_MODALIDAD = { manana: 'Solo mañana', tarde: 'Solo tarde', completo: 'Servicio completo' }
+  const LABEL_ESTADO    = {
+    pendiente: { texto: 'Pendiente',  bg: '#FEF9C3', color: '#854D0E' },
+    aceptada:  { texto: 'Aceptada',   bg: '#dcfce7', color: '#166534' },
+    rechazada: { texto: 'Rechazada',  bg: '#fee2e2', color: '#991b1b' },
+    vinculada: { texto: 'Vinculada',  bg: '#dbeafe', color: '#1e40af' },
+    cancelada: { texto: 'Cancelada',  bg: '#f1f5f9', color: '#475569' },
+  }
+
+  const listaMostrar = filtrando === 'pendiente'
+    ? lista.filter(l => l.estado === 'pendiente')
+    : lista
+
+  const pendientesCount = lista.filter(l => l.estado === 'pendiente').length
+
+  if (cargando) return (
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px' }}>
+      {[1,2,3].map(i => <div key={i} style={{ marginBottom: 12 }}><Skeleton h={88} r={12} /></div>)}
+    </div>
+  )
+
+  return (
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px 48px' }}>
+
+      {/* Encabezado + filtro */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0F2044', fontFamily: "'Sora',system-ui,sans-serif" }}>
+            Solicitudes de cupo
+          </h1>
+          {pendientesCount > 0 && (
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#854D0E' }}>
+              {pendientesCount} solicitud{pendientesCount > 1 ? 'es' : ''} pendiente{pendientesCount > 1 ? 's' : ''} por revisar
+            </p>
+          )}
+        </div>
+        <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 8, padding: 3, gap: 2 }}>
+          {[['pendiente','Pendientes'],['todas','Todas']].map(([v, label]) => (
+            <button key={v} onClick={() => setFiltrando(v)}
+              style={{ background: filtrando === v ? '#0F2044' : 'transparent', color: filtrando === v ? '#fff' : '#64748b', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all .15s', position: 'relative' }}>
+              {label}
+              {v === 'pendiente' && pendientesCount > 0 && (
+                <span style={{ position: 'absolute', top: -4, right: -4, background: '#F5C400', color: '#0F2044', borderRadius: 10, fontSize: 10, fontWeight: 700, padding: '1px 5px', minWidth: 16, textAlign: 'center' }}>{pendientesCount}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {listaMostrar.length === 0 ? (
+        <div style={{ background: '#fff', borderRadius: 14, padding: '48px 24px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+          {IC.inbox}
+          <p style={{ color: '#64748b', marginTop: 12, fontSize: 14 }}>
+            {filtrando === 'pendiente' ? 'No tienes solicitudes pendientes.' : 'Aún no has recibido solicitudes.'}
+          </p>
+          {filtrando === 'pendiente' && lista.length > 0 && (
+            <button onClick={() => setFiltrando('todas')} style={{ marginTop: 8, background: 'none', border: 'none', color: '#0F2044', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+              Ver historial →
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {listaMostrar.map(sol => {
+            const est  = LABEL_ESTADO[sol.estado] || LABEL_ESTADO.pendiente
+            const apNombre = sol.apoderado?.perfil_apoderado?.nombre || 'Apoderado'
+            const apTel    = sol.apoderado?.perfil_apoderado?.telefono
+            return (
+              <button key={sol.id}
+                onClick={() => { setDetalle(sol); setMsgDetalle(null) }}
+                style={{ background: '#fff', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', border: sol.estado === 'pendiente' ? '2px solid #F5C400' : '1.5px solid #e2e8f0', textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#0F2044', marginBottom: 2 }}>
+                      {sol.alumno?.nombre || 'Alumno'} · {apNombre}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
+                      {sol.colegio?.nombre || '—'} · {LABEL_MODALIDAD[sol.modalidad] || sol.modalidad}
+                    </div>
+                    {sol.nota_apoderado && (
+                      <div style={{ fontSize: 12, color: '#475569', background: '#f8fafc', borderRadius: 6, padding: '4px 8px', fontStyle: 'italic' }}>
+                        "{sol.nota_apoderado}"
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                    <span style={{ background: est.bg, color: est.color, fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20 }}>{est.texto}</span>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                      {new Date(sol.created_at).toLocaleDateString('es-CL')}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Modal detalle / respuesta */}
+      {detalle && (() => {
+        const est     = LABEL_ESTADO[detalle.estado] || LABEL_ESTADO.pendiente
+        const apNombre = detalle.apoderado?.perfil_apoderado?.nombre || 'Apoderado'
+        const apTel    = detalle.apoderado?.perfil_apoderado?.telefono
+        const apDir    = detalle.apoderado?.perfil_apoderado?.direccion
+        const esPendiente = detalle.estado === 'pendiente'
+        return (
+          <div role="dialog" aria-modal="true" aria-label="Detalle solicitud"
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 0 0' }}
+            onClick={e => { if (e.target === e.currentTarget) setDetalle(null) }}>
+            <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto', padding: '24px 20px 40px' }}>
+              {/* Handle */}
+              <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 2, margin: '0 auto 20px' }} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0F2044' }}>Solicitud de cupo</h2>
+                <span style={{ background: est.bg, color: est.color, fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>{est.texto}</span>
+              </div>
+
+              {/* Info alumno + apoderado */}
+              <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  {[
+                    { label: 'Alumno/a',  val: detalle.alumno?.nombre },
+                    { label: 'Colegio',   val: detalle.colegio?.nombre },
+                    { label: 'Modalidad', val: LABEL_MODALIDAD[detalle.modalidad] },
+                    { label: 'Apoderado', val: apNombre },
+                  ].map(({ label, val }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em' }}>{label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0F2044', marginTop: 2 }}>{val || '—'}</div>
+                    </div>
+                  ))}
+                </div>
+                {apDir && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em' }}>Dirección del alumno</div>
+                    <div style={{ fontSize: 13, color: '#475569', marginTop: 2 }}>{apDir}</div>
+                  </div>
+                )}
+                {apTel && (
+                  <a href={`https://wa.me/${apTel.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 13, fontWeight: 600, color: '#25D366', textDecoration: 'none' }}>
+                    💬 {apTel}
+                  </a>
+                )}
+              </div>
+
+              {detalle.nota_apoderado && (
+                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: '#92400E', fontWeight: 700, marginBottom: 4 }}>NOTA DEL APODERADO</div>
+                  <p style={{ margin: 0, fontSize: 13, color: '#78350F' }}>"{detalle.nota_apoderado}"</p>
+                </div>
+              )}
+
+              {msgDetalle && (
+                <div style={{ fontSize: 13, fontWeight: 500, color: msgDetalle.ok ? '#16a34a' : '#dc2626', marginBottom: 12, padding: '8px 12px', background: msgDetalle.ok ? '#f0fdf4' : '#fef2f2', borderRadius: 8 }}>
+                  {msgDetalle.texto}
+                </div>
+              )}
+
+              {esPendiente && (() => {
+                const [precioInput, setPrecioInput] = useState('')
+                const [notaInput, setNotaInput]     = useState('')
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                        Precio mensual que ofrecerás ($)
+                      </label>
+                      <input
+                        type="number" min="1000" step="1000"
+                        value={precioInput}
+                        onChange={e => setPrecioInput(e.target.value)}
+                        placeholder="ej: 45000"
+                        style={s.input}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                        Nota para el apoderado (opcional)
+                      </label>
+                      <textarea
+                        value={notaInput}
+                        onChange={e => setNotaInput(e.target.value)}
+                        placeholder="Ej: La ruta pasa a las 7:30 am por tu sector"
+                        maxLength={300}
+                        style={{ ...s.input, minHeight: 60, resize: 'vertical', fontFamily: 'inherit' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button
+                        onClick={() => responder(detalle.id, 'rechazar', null, notaInput)}
+                        disabled={procesando}
+                        style={{ flex: 1, padding: '11px 0', borderRadius: 8, border: '1.5px solid #fca5a5', background: '#fee2e2', color: '#991b1b', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                        {procesando ? '…' : 'Rechazar'}
+                      </button>
+                      <button
+                        onClick={() => responder(detalle.id, 'aceptar', precioInput, notaInput)}
+                        disabled={procesando || !precioInput}
+                        style={{ flex: 2, padding: '11px 0', borderRadius: 8, border: 'none', background: precioInput ? '#0F2044' : '#94a3b8', color: precioInput ? '#F5C400' : '#fff', fontWeight: 700, fontSize: 14, cursor: precioInput ? 'pointer' : 'not-allowed' }}>
+                        {procesando ? 'Enviando…' : 'Aceptar y enviar oferta'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {!esPendiente && (
+                <button onClick={() => setDetalle(null)}
+                  style={{ width: '100%', padding: '12px 0', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+                  Cerrar
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+    </div>
+  )
+}
+
+const IC_solicitudes = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><rect x="1.5" y="3" width="15" height="12" rx="1.5"/><path d="M5 7h8M5 10h5"/><circle cx="14" cy="4.5" r="2.5" fill="#F5C400" stroke="none"/></svg>
+
 const MENU = [
-  { id: 'home',       icon: IC.home,       label: 'Inicio' },
-  { id: 'apoderados', icon: IC.apoderados, label: 'Apoderados' },
-  { id: 'alumnos',    icon: IC.alumnos,    label: 'Alumnos' },
-  { id: 'cobros',     icon: IC.cobros,     label: 'Cobros' },
-  { id: 'rutas',      icon: IC.rutas,      label: 'Rutas' },
-  { id: 'asistencia', icon: IC.asistencia, label: 'Asistencia' },
-  { id: 'avisos',     icon: IC.avisos,     label: 'Avisos' },
+  { id: 'home',         icon: IC.home,           label: 'Inicio' },
+  { id: 'apoderados',   icon: IC.apoderados,     label: 'Apoderados' },
+  { id: 'alumnos',      icon: IC.alumnos,        label: 'Alumnos' },
+  { id: 'cobros',       icon: IC.cobros,         label: 'Cobros' },
+  { id: 'rutas',        icon: IC.rutas,          label: 'Rutas' },
+  { id: 'viaje',        icon: IC_ruteo,          label: 'Ruteo' },
+  { id: 'solicitudes',  icon: IC_solicitudes,    label: 'Solicitudes' },
+  { id: 'asistencia',   icon: IC.asistencia,     label: 'Asistencia' },
+  { id: 'avisos',       icon: IC.avisos,         label: 'Avisos' },
+  { id: 'perfil',       icon: IC_perfil,         label: 'Mi Perfil' },
 ]
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -1144,6 +2222,528 @@ function ModalSalir({ onConfirmar, onCancelar }) {
           >Confirmar ({cuenta}s)</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Perfil Transportista ────────────────────────────────────────────────────
+const MARCAS_VEHICULO = ['Hyundai','Kia','Toyota','Renault','Chevrolet','Mercedes-Benz','Volkswagen','Ford','Nissan','Otro']
+const AÑOS_VEHICULO   = Array.from({ length: 30 }, (_, i) => String(new Date().getFullYear() - i))
+
+function Perfil() {
+  const [perfil, setPerfil]     = useState(null)
+  const [modo, setModo]         = useState('ver')   // 'ver' | 'editar'
+  const [form, setForm]         = useState({})
+  const [guardando, setGuardando] = useState(false)
+  const [msg, setMsg]           = useState('')
+  const [fotoFile, setFotoFile] = useState(null)
+  const [fotoPreview, setFotoPreview] = useState(null)
+
+  // ── Marketplace: perfil público ──────────────────────────
+  const [tpPerfil, setTpPerfil]       = useState(null)   // transportista_perfil row
+  const [precios, setPrecios]         = useState([])     // precios_modalidad rows
+  const [colegiosCat, setColegiosCat] = useState([])     // catálogo completo
+  const [tcActivos, setTcActivos]     = useState([])     // transportista_colegios activos
+  const [guardandoMkt, setGuardandoMkt] = useState(false)
+  const [msgMkt, setMsgMkt]           = useState(null)   // {texto, ok}
+
+  useEffect(() => { cargar() }, [])
+
+  async function cargar() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase.from('perfil_transportista')
+      .select('*').eq('user_id', user.id).maybeSingle()
+    if (data) {
+      setPerfil(data)
+      setForm(data)
+    } else {
+      const vacio = { user_id: user.id, nombre: '', rut: '', telefono: '', email: user.email,
+        marca: '', modelo: '', año: '', patente: '', color: '', capacidad: '',
+        foto_url: '', mtt_verificado: false, mtt_fecha: null, experiencia_años: '' }
+      setPerfil(vacio); setForm(vacio)
+    }
+    // Cargar datos marketplace en paralelo
+    const [{ data: tp }, { data: pm }, { data: cat }, { data: tc }] = await Promise.all([
+      supabase.from('transportista_perfil').select('*').eq('user_id', user.id).maybeSingle(),
+      supabase.from('precios_modalidad').select('*').eq('user_id', user.id).eq('activo', true),
+      supabase.from('colegios').select('id,nombre,tipo,sector').eq('activo', true).order('nombre'),
+      supabase.from('transportista_colegios').select('id,colegio_id').eq('user_id', user.id).eq('activo', true),
+    ])
+    setTpPerfil(tp || { user_id: user.id, visible: false, patente: '', anos_experiencia: '', descripcion: '', capacidad_total: '' })
+    setPrecios(pm || [])
+    setColegiosCat(cat || [])
+    setTcActivos(tc || [])
+  }
+
+  // ── Toggle visible en marketplace ──────────────────────
+  async function toggleVisible() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const nuevoVisible = !tpPerfil.visible
+    const { error } = await supabase.from('transportista_perfil')
+      .upsert({ ...tpPerfil, visible: nuevoVisible, user_id: user.id }, { onConflict: 'user_id' })
+    if (!error) setTpPerfil(p => ({ ...p, visible: nuevoVisible }))
+  }
+
+  // ── Guardar perfil público (descripción, experiencia, capacidad) ───────────
+  async function guardarPerfilPublico(e) {
+    e.preventDefault(); setGuardandoMkt(true); setMsgMkt(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase.from('transportista_perfil')
+        .upsert({ ...tpPerfil, user_id: user.id }, { onConflict: 'user_id' })
+      if (error) throw error
+      setMsgMkt({ texto: 'Perfil público guardado', ok: true })
+    } catch(err) { setMsgMkt({ texto: err.message, ok: false }) }
+    finally { setGuardandoMkt(false) }
+  }
+
+  // ── Guardar precio por modalidad ───────────────────────
+  async function guardarPrecio(modalidad, valor) {
+    const { data: { user } } = await supabase.auth.getUser()
+    const precio_mensual = parseInt(valor, 10)
+    if (!precio_mensual || precio_mensual <= 0) return
+    const { error } = await supabase.from('precios_modalidad')
+      .upsert({ user_id: user.id, modalidad, precio_mensual, activo: true }, { onConflict: 'user_id,modalidad' })
+    if (!error) setPrecios(prev => {
+      const sin = prev.filter(p => p.modalidad !== modalidad)
+      return [...sin, { user_id: user.id, modalidad, precio_mensual, activo: true }]
+    })
+  }
+
+  // ── Agregar / quitar colegio atendido ──────────────────
+  async function toggleColegio(colegioId) {
+    const { data: { user } } = await supabase.auth.getUser()
+    const activo = tcActivos.find(t => t.colegio_id === colegioId)
+    if (activo) {
+      await supabase.from('transportista_colegios').update({ activo: false }).eq('id', activo.id)
+      setTcActivos(prev => prev.filter(t => t.colegio_id !== colegioId))
+    } else {
+      const { data } = await supabase.from('transportista_colegios')
+        .upsert({ user_id: user.id, colegio_id: colegioId, activo: true }, { onConflict: 'user_id,colegio_id' })
+        .select('id,colegio_id').maybeSingle()
+      if (data) setTcActivos(prev => [...prev, data])
+    }
+  }
+
+  function handleFoto(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setFotoFile(file)
+    setFotoPreview(URL.createObjectURL(file))
+  }
+
+  async function guardar(e) {
+    e.preventDefault()
+    setGuardando(true); setMsg('')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      let foto_url = form.foto_url
+      if (fotoFile) {
+        const ext  = fotoFile.name.split('.').pop()
+        const path = `transportistas/${user.id}.${ext}`
+        const { error: upErr } = await supabase.storage.from('fotos').upload(path, fotoFile, { upsert: true })
+        if (!upErr) {
+          const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(path)
+          foto_url = publicUrl
+        }
+      }
+      const payload = { ...form, foto_url, user_id: user.id }
+      const { error } = await supabase.from('perfil_transportista').upsert(payload, { onConflict: 'user_id' })
+      if (error) throw error
+      setPerfil(payload); setModo('ver')
+      setMsg('✅ Perfil guardado')
+    } catch(err) {
+      setMsg('Error al guardar: ' + err.message)
+    } finally { setGuardando(false) }
+  }
+
+  async function marcarMTT() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const fecha = new Date().toISOString().split('T')[0]
+    await supabase.from('perfil_transportista')
+      .upsert({ ...perfil, mtt_verificado: true, mtt_fecha: fecha, user_id: user.id }, { onConflict: 'user_id' })
+    setPerfil(p => ({ ...p, mtt_verificado: true, mtt_fecha: fecha }))
+    setForm(p => ({ ...p, mtt_verificado: true, mtt_fecha: fecha }))
+  }
+
+  const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const foto = fotoPreview || perfil?.foto_url
+
+  if (!perfil) return <div style={s.vista}><Skeleton /></div>
+
+  if (modo === 'editar') return (
+    <div style={s.vista}>
+      <div style={s.vistaHeader}>
+        <h1 style={s.vtitulo}>Mi Perfil</h1>
+        <button style={s.btnSecundario} onClick={() => { setModo('ver'); setFotoFile(null); setFotoPreview(null) }}>Cancelar</button>
+      </div>
+      {msg && <p style={{ ...s.errorMsg, color: msg.startsWith('✅') ? '#16a34a' : '#dc2626', marginBottom: 12 }}>{msg}</p>}
+      <form onSubmit={guardar} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Foto */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+          <p style={{ margin: '0 0 12px', fontWeight: 600, color: '#0F2044', fontSize: 14 }}>Foto del transportista</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {foto
+              ? <img src={foto} alt="Foto perfil" style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2px solid #dde4ef' }} />
+              : <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#F2F5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed #dde4ef', color: '#94a3b8', fontSize: 28 }}>👤</div>
+            }
+            <label style={{ ...s.btnPrimario, cursor: 'pointer', fontSize: 13 }}>
+              Subir foto
+              <input type="file" accept="image/*" onChange={handleFoto} style={{ display: 'none' }} />
+            </label>
+          </div>
+        </div>
+
+        {/* Datos personales */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+          <p style={{ margin: '0 0 14px', fontWeight: 600, color: '#0F2044', fontSize: 14 }}>Datos personales</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Nombre completo</label>
+              <input style={s.input} value={form.nombre||''} onChange={e=>f('nombre',e.target.value)} placeholder="Nombre Apellido" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>RUT</label>
+              <input style={s.input} value={form.rut||''} onChange={e=>f('rut',e.target.value)} placeholder="12.345.678-9" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Teléfono</label>
+              <input style={s.input} value={form.telefono||''} onChange={e=>f('telefono',e.target.value)} placeholder="+56 9 1234 5678" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Años de experiencia</label>
+              <input style={s.input} type="number" min="0" max="50" value={form.experiencia_años||''} onChange={e=>f('experiencia_años',e.target.value)} placeholder="ej: 8" />
+            </div>
+          </div>
+        </div>
+
+        {/* Datos del vehículo */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+          <p style={{ margin: '0 0 14px', fontWeight: 600, color: '#0F2044', fontSize: 14 }}>Datos del vehículo</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Marca</label>
+              <select style={s.input} value={form.marca||''} onChange={e=>f('marca',e.target.value)}>
+                <option value="">Seleccionar</option>
+                {MARCAS_VEHICULO.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Modelo</label>
+              <input style={s.input} value={form.modelo||''} onChange={e=>f('modelo',e.target.value)} placeholder="ej: H1, Starex" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Año</label>
+              <select style={s.input} value={form.año||''} onChange={e=>f('año',e.target.value)}>
+                <option value="">Seleccionar</option>
+                {AÑOS_VEHICULO.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Patente</label>
+              <input style={{ ...s.input, textTransform: 'uppercase' }} value={form.patente||''} onChange={e=>f('patente',e.target.value.toUpperCase())} placeholder="ABCD12" maxLength={6} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Color</label>
+              <input style={s.input} value={form.color||''} onChange={e=>f('color',e.target.value)} placeholder="ej: Blanco" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Capacidad (pasajeros)</label>
+              <input style={s.input} type="number" min="1" max="20" value={form.capacidad||''} onChange={e=>f('capacidad',e.target.value)} placeholder="ej: 10" />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" style={s.btnSecundario} onClick={() => { setModo('ver'); setFotoFile(null); setFotoPreview(null) }}>Cancelar</button>
+          <button type="submit" style={s.btnPrimario} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar perfil'}</button>
+        </div>
+      </form>
+    </div>
+  )
+
+  // ── Vista ──
+  const mttOk    = perfil.mtt_verificado
+  const mttFecha = perfil.mtt_fecha ? new Date(perfil.mtt_fecha).toLocaleDateString('es-CL') : null
+  const mttVencido = mttFecha && (new Date() - new Date(perfil.mtt_fecha)) > 365 * 24 * 3600 * 1000
+
+  return (
+    <div style={s.vista}>
+      <div style={s.vistaHeader}>
+        <h1 style={s.vtitulo}>Mi Perfil</h1>
+        <button style={s.btnPrimario} onClick={() => setModo('editar')}>Editar perfil</button>
+      </div>
+
+      {/* Tarjeta principal */}
+      <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 1px 4px rgba(0,0,0,.08)', overflow: 'hidden', marginBottom: 16 }}>
+        {/* Header azul */}
+        <div style={{ background: '#0F2044', padding: '24px 24px 20px', display: 'flex', alignItems: 'center', gap: 18 }}>
+          {foto
+            ? <img src={foto} alt="Foto perfil" style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '3px solid #F5C400', flexShrink: 0 }} />
+            : <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#1A3A6B', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #F5C400', fontSize: 32, flexShrink: 0 }}>👤</div>
+          }
+          <div>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 20, fontFamily: "'Sora',system-ui,sans-serif" }}>
+              {perfil.nombre || <span style={{ color: '#7a9cc8', fontStyle: 'italic', fontSize: 16 }}>Sin nombre — edita tu perfil</span>}
+            </div>
+            {perfil.rut && <div style={{ color: '#a8c0dd', fontSize: 13, marginTop: 2 }}>RUT {perfil.rut}</div>}
+            {perfil.experiencia_años && <div style={{ color: '#a8c0dd', fontSize: 13 }}>{perfil.experiencia_años} años de experiencia</div>}
+          </div>
+          {/* Badge MTT */}
+          <div style={{ marginLeft: 'auto', textAlign: 'center' }}>
+            {mttOk && !mttVencido
+              ? <div style={{ background: '#dcfce7', border: '1.5px solid #86efac', borderRadius: 10, padding: '8px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <span style={{ fontSize: 18 }}>✓</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#166534', lineHeight: 1.2 }}>CERTIFICADO<br/>MTT</span>
+                  {mttFecha && <span style={{ fontSize: 10, color: '#16a34a' }}>Verificado {mttFecha}</span>}
+                </div>
+              : mttVencido
+                ? <div style={{ background: '#fef9c3', border: '1.5px solid #fde68a', borderRadius: 10, padding: '8px 14px', textAlign: 'center' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e' }}>⚠ REVERIFICAR<br/>MTT</span>
+                    {mttFecha && <div style={{ fontSize: 10, color: '#b45309' }}>Última vez: {mttFecha}</div>}
+                  </div>
+                : <div style={{ background: '#fee2e2', border: '1.5px solid #fca5a5', borderRadius: 10, padding: '8px 14px', textAlign: 'center' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#991b1b' }}>SIN VERIFICAR<br/>MTT</span>
+                  </div>
+            }
+          </div>
+        </div>
+
+        {/* Datos vehículo */}
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9' }}>
+          <p style={{ margin: '0 0 12px', fontWeight: 600, fontSize: 13, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em' }}>Vehículo</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+            {[
+              { label: 'Marca',     val: perfil.marca },
+              { label: 'Modelo',    val: perfil.modelo },
+              { label: 'Año',       val: perfil.año },
+              { label: 'Patente',   val: perfil.patente },
+              { label: 'Color',     val: perfil.color },
+              { label: 'Capacidad', val: perfil.capacidad ? `${perfil.capacidad} pasajeros` : null },
+            ].map(({ label, val }) => (
+              <div key={label}>
+                <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: val ? '#0F2044' : '#cbd5e1', fontStyle: val ? 'normal' : 'italic' }}>
+                  {val || '—'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Verificación MTT */}
+        <div style={{ padding: '16px 24px', background: '#F2F5FA' }}>
+          <p style={{ margin: '0 0 10px', fontWeight: 600, fontSize: 13, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em' }}>Verificación MTT</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <a
+              href={`http://apps.mtt.cl/consultaweb/?patente=${perfil.patente || ''}`}
+              target="_blank" rel="noopener noreferrer"
+              style={{ ...s.btnPrimario, textDecoration: 'none', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              {IC.link} Consultar en MTT
+            </a>
+            {!mttOk || mttVencido
+              ? <button style={{ ...s.btnSecundario, fontSize: 13 }} onClick={marcarMTT}>
+                  Marcar como verificado hoy
+                </button>
+              : <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 500 }}>✓ Verificado el {mttFecha}</span>
+            }
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>Verifica la patente en el sitio oficial del MTT y marca como verificado</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Contacto */}
+      {(perfil.telefono || perfil.email) && (
+        <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 16 }}>
+          {perfil.telefono && (
+            <div>
+              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Teléfono</div>
+              <a href={`https://wa.me/${perfil.telefono.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 14, fontWeight: 600, color: '#0F2044', textDecoration: 'none' }}>
+                {perfil.telefono}
+              </a>
+            </div>
+          )}
+          {perfil.email && (
+            <div>
+              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Email</div>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#0F2044' }}>{perfil.email}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SECCIÓN MARKETPLACE ─────────────────────────── */}
+      {tpPerfil && (<>
+
+        {/* Toggle visible */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#0F2044', marginBottom: 2 }}>Visible en el marketplace</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                {tpPerfil.visible
+                  ? 'Apoderados sin transporte pueden encontrarte y solicitar cupo.'
+                  : 'Solo tus apoderados actuales te ven. Activa para recibir nuevas solicitudes.'}
+              </div>
+            </div>
+            {/* Toggle switch */}
+            <button
+              onClick={toggleVisible}
+              aria-pressed={tpPerfil.visible}
+              style={{
+                width: 52, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer', flexShrink: 0,
+                background: tpPerfil.visible ? '#0F2044' : '#cbd5e1',
+                position: 'relative', transition: 'background .2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: 3,
+                left: tpPerfil.visible ? 27 : 3,
+                width: 22, height: 22, borderRadius: '50%',
+                background: tpPerfil.visible ? '#F5C400' : '#fff',
+                transition: 'left .2s',
+                display: 'block',
+              }}/>
+            </button>
+          </div>
+        </div>
+
+        {/* Perfil público: descripción, experiencia, capacidad */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', marginBottom: 16 }}>
+          <p style={{ margin: '0 0 14px', fontWeight: 600, color: '#0F2044', fontSize: 14 }}>Perfil público</p>
+          {msgMkt && (
+            <div style={{ fontSize: 13, color: msgMkt.ok ? '#16a34a' : '#dc2626', marginBottom: 10, fontWeight: 500 }}>
+              {msgMkt.texto}
+            </div>
+          )}
+          <form onSubmit={guardarPerfilPublico} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={s.label}>Años de experiencia</label>
+                <input style={s.input} type="number" min="0" max="50"
+                  value={tpPerfil.anos_experiencia || ''}
+                  onChange={e => setTpPerfil(p => ({ ...p, anos_experiencia: e.target.value }))}
+                  placeholder="ej: 8" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={s.label}>Capacidad total del furgón</label>
+                <input style={s.input} type="number" min="1" max="30"
+                  value={tpPerfil.capacidad_total || ''}
+                  onChange={e => setTpPerfil(p => ({ ...p, capacidad_total: e.target.value }))}
+                  placeholder="ej: 12" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={s.label}>Descripción breve <span style={{ color: '#94a3b8', fontWeight: 400 }}>(máx. 400 caracteres)</span></label>
+              <textarea
+                style={{ ...s.input, minHeight: 72, resize: 'vertical', fontFamily: 'inherit' }}
+                maxLength={400}
+                value={tpPerfil.descripcion || ''}
+                onChange={e => setTpPerfil(p => ({ ...p, descripcion: e.target.value }))}
+                placeholder="Cuéntales a los apoderados sobre tu servicio, sector que cubres, etc."
+              />
+              <span style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
+                {(tpPerfil.descripcion || '').length}/400
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="submit" style={s.btnPrimario} disabled={guardandoMkt}>
+                {guardandoMkt ? 'Guardando…' : 'Guardar perfil público'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Precios por modalidad */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', marginBottom: 16 }}>
+          <p style={{ margin: '0 0 4px', fontWeight: 600, color: '#0F2044', fontSize: 14 }}>Precios por modalidad</p>
+          <p style={{ margin: '0 0 14px', fontSize: 12, color: '#64748b' }}>Precio mensual de referencia que verán los apoderados al buscar transporte.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { key: 'manana',   label: 'Solo mañana',   sub: 'Hogar → Colegio' },
+              { key: 'tarde',    label: 'Solo tarde',    sub: 'Colegio → Hogar' },
+              { key: 'completo', label: 'Servicio completo', sub: 'Ida y vuelta' },
+            ].map(({ key, label, sub }) => {
+              const actual = precios.find(p => p.modalidad === key)
+              return (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#F8FAFC', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: '#0F2044' }}>{label}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>$</span>
+                    <input
+                      style={{ ...s.input, width: 110, margin: 0, textAlign: 'right' }}
+                      type="number" min="1000" step="1000"
+                      defaultValue={actual?.precio_mensual || ''}
+                      placeholder="0"
+                      onBlur={e => guardarPrecio(key, e.target.value)}
+                      key={actual?.precio_mensual}  // re-render si cambia desde BD
+                    />
+                  </div>
+                  {actual?.precio_mensual && (
+                    <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, minWidth: 70, textAlign: 'right' }}>
+                      {actual.precio_mensual.toLocaleString('es-CL')} CLP
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p style={{ margin: '10px 0 0', fontSize: 11, color: '#94a3b8' }}>El precio se guarda al salir del campo. Deja en 0 para no mostrar esa modalidad.</p>
+        </div>
+
+        {/* Colegios que atiende */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', marginBottom: 16 }}>
+          <p style={{ margin: '0 0 4px', fontWeight: 600, color: '#0F2044', fontSize: 14 }}>Colegios que atiendes</p>
+          <p style={{ margin: '0 0 14px', fontSize: 12, color: '#64748b' }}>Los apoderados filtrarán por colegio al buscar transporte. Marca los que cubres.</p>
+          {colegiosCat.length === 0
+            ? <p style={{ fontSize: 13, color: '#94a3b8' }}>Cargando colegios…</p>
+            : (() => {
+                // Agrupar por tipo
+                const grupos = {}
+                const labelTipo = {
+                  basica: 'Básica', basica_media: 'Básica y Media', media: 'Media',
+                  especial_lenguaje: 'Lenguaje', especial_diferencial: 'Diferencial',
+                  jardin: 'Jardín', sala_cuna: 'Sala Cuna', otro: 'Otro'
+                }
+                colegiosCat.forEach(c => {
+                  const g = labelTipo[c.tipo] || c.tipo
+                  if (!grupos[g]) grupos[g] = []
+                  grupos[g].push(c)
+                })
+                return Object.entries(grupos).map(([grupo, cols]) => (
+                  <div key={grupo} style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>{grupo}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {cols.map(c => {
+                        const marcado = tcActivos.some(t => t.colegio_id === c.id)
+                        return (
+                          <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', background: marcado ? '#EFF6FF' : '#F8FAFC', border: `1px solid ${marcado ? '#bfdbfe' : '#e2e8f0'}`, transition: 'background .15s' }}>
+                            <input type="checkbox" checked={marcado} onChange={() => toggleColegio(c.id)}
+                              style={{ width: 16, height: 16, accentColor: '#0F2044', flexShrink: 0 }} />
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: marcado ? 600 : 400, color: '#0F2044' }}>{c.nombre}</div>
+                              {c.sector && <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.sector === 'lirquen' ? 'Lirquén' : c.sector === 'cosmito' ? 'Cosmito' : 'Penco centro'}</div>}
+                            </div>
+                            {marcado && (
+                              <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#0F2044', background: '#F5C400', borderRadius: 4, padding: '2px 6px' }}>✓</span>
+                            )}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              })()
+          }
+        </div>
+
+      </>)}
     </div>
   )
 }
@@ -1247,13 +2847,16 @@ function Dashboard({ sesion, onLogout }) {
           </button>
         </header>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {seccion === 'home'       && <Home onNavegar={setSeccion} />}
-          {seccion === 'apoderados' && <Apoderados />}
-          {seccion === 'alumnos'    && <Alumnos />}
-          {seccion === 'cobros'     && <Cobros />}
-          {seccion === 'rutas'      && <Rutas />}
-          {seccion === 'asistencia' && <Asistencia />}
-          {seccion === 'avisos'     && <Avisos />}
+          {seccion === 'home'        && <Home onNavegar={setSeccion} />}
+          {seccion === 'apoderados'  && <Apoderados />}
+          {seccion === 'alumnos'     && <Alumnos />}
+          {seccion === 'cobros'      && <Cobros />}
+          {seccion === 'rutas'       && <Rutas />}
+          {seccion === 'viaje'       && <Viaje />}
+          {seccion === 'solicitudes' && <BandejaSolicitudes />}
+          {seccion === 'asistencia'  && <Asistencia />}
+          {seccion === 'avisos'      && <Avisos />}
+          {seccion === 'perfil'      && <Perfil />}
         </div>
       </div>
     </div>
@@ -1629,6 +3232,9 @@ export default function App() {
   const handleLogout = async () => { await supabase.auth.signOut() }
 
   if (cargando) return <div style={s.centro} aria-busy="true"><Skeleton w={200} h={20} /></div>
+
+  // Ruta pública: portal apoderado
+  if (ruta.startsWith('/portal')) return <PortalApoderado />
 
   // Ruta pública: actualizar contraseña (directo o via token recovery en URL)
   if (ruta.startsWith('/actualizar-password') || esRecovery) return <ActualizarPassword />
