@@ -53,7 +53,7 @@ function Sk({ w = '100%', h = 16, r = 6 }) {
 
 // ─── Utilis ───────────────────────────────────────────────────────────────────
 function formatCLP(n) { return '$' + Number(n).toLocaleString('es-CL') }
-function formatFecha(d) { return d ? new Date(d).toLocaleDateString('es-CL') : '—' }
+function formatFecha(d) { return d ? new Date(d).toLocaleDateString('es-CL') : '—' } // eslint-disable-line no-unused-vars
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // REGISTRO (apoderado llega con ?key=XXX)

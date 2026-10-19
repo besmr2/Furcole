@@ -1441,8 +1441,6 @@ const IC_flag    = <svg width="18" height="18" viewBox="0 0 18 18" fill="none" s
 const FASE = { SELECCION: 'seleccion', RECOGIDA: 'recogida', ENTREGA: 'entrega', CERRADO: 'cerrado' }
 
 function Ruteo() {
-  const hoy = new Date().toISOString().split('T')[0]
-
   // ── Estado principal ──────────────────────────────────
   const [fase,       setFase]      = useState(FASE.SELECCION)
   const [rutas,      setRutas]     = useState([])
@@ -1452,7 +1450,7 @@ function Ruteo() {
   const [alumnos,    setAlumnos]   = useState([])     // ordenados por ruta_alumnos.orden
   const [idxActual,  setIdxActual] = useState(0)      // puntero en la lista
   const [procesados, setProcesados]= useState([])     // { alumno_id, tipo, hora }
-  const [saltados,   setSaltados]  = useState(new Set())
+  const [_saltados,  setSaltados]  = useState(new Set()) // eslint-disable-line no-unused-vars
   const [busy,       setBusy]      = useState(false)
   const [cargando,   setCargando]  = useState(true)
   const [msg,        setMsg]       = useState(null)   // { texto, ok }
@@ -2025,7 +2023,7 @@ function BandejaSolicitudes() {
           {listaMostrar.map(sol => {
             const est  = LABEL_ESTADO[sol.estado] || LABEL_ESTADO.pendiente
             const apNombre = sol.apoderado?.perfil_apoderado?.nombre || 'Apoderado'
-            const apTel    = sol.apoderado?.perfil_apoderado?.telefono
+            const apTel    = sol.apoderado?.perfil_apoderado?.telefono // eslint-disable-line no-unused-vars
             return (
               <button key={sol.id}
                 onClick={() => { setDetalle(sol); setMsgDetalle(null) }}
