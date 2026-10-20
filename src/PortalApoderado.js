@@ -249,12 +249,23 @@ function Login({ onLogin }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // PORTAL PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════════════
-function Portal({ user, onLogout }) {
+function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
   const [datos, setDatos]         = useState(null)
   const [cargando, setCargando]   = useState(true)
   const [seccion, setSeccion]     = useState('cobros')
-  const [pagando, setPagando]     = useState(null) // cobro siendo pagado
+  const [pagando, setPagando]     = useState(null)  // cobro siendo pagado
+  const [errorPago, setErrorPago] = useState('')    // mensaje de error pago Flow
+  const [exitoPago, setExitoPago] = useState(pagoOk) // banner verde tras retorno de Flow
   const [cambiarTp, setCambiarTp] = useState(false) // modal cambio transportista
+
+  // Limpiar ?pago=ok de la URL para evitar que recarga vuelva a mostrar el banner
+  useEffect(() => {
+    if (!pagoOk) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('pago')
+    url.searchParams.delete('cobro')
+    window.history.replaceState({}, '', url.toString())
+  }, [pagoOk])
   // Realtime: último evento de subida/bajada recibido
   const [eventoRealtime, setEventoRealtime] = useState(null) // { tipo, nombre, hora }
 
@@ -352,11 +363,18 @@ function Portal({ user, onLogout }) {
         }),
       })
       const json = await res.json()
-      if (json.url) { window.location.href = json.url }
-      else { alert('Error al iniciar pago: ' + (json.error || 'intenta más tarde')) }
+      if (json.url) {
+        // Redirige al portal de pago Flow — no llamar setPagando(null) para que
+        // el botón quede en "Redirigiendo…" hasta que la página cambie
+        window.location.href = json.url
+        return
+      }
+      setPagando(null)
+      setErrorPago(json.error || 'No se pudo iniciar el pago. Intenta más tarde.')
     } catch(e) {
-      alert('Error de conexión')
-    } finally { setPagando(null) }
+      setPagando(null)
+      setErrorPago('Error de conexión. Verifica tu internet e intenta nuevamente.')
+    }
   }
 
   if (cargando) return (
@@ -387,7 +405,7 @@ function Portal({ user, onLogout }) {
       {/* Topbar */}
       <div style={p.topbar}>
         <span style={p.topNombre}>{IC.bus} Furcole</span>
-        <button onClick={onLogout} style={{ background: 'transparent', border: 'none', color: '#a8c0dd', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+        <button onClick={onLogout} style={{ background: '#c0392b', border: 'none', borderRadius: 7, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, padding: '6px 14px' }}>
           {IC.logout} Salir
         </button>
       </div>
@@ -515,6 +533,19 @@ function Portal({ user, onLogout }) {
 
         {/* ── Cobros pendientes ── */}
         {seccion === 'cobros' && (
+          <>
+          {exitoPago && (
+            <div role="status" style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>✅ ¡Pago procesado correctamente!{cobroIdPago ? ' Tu cobro ha sido enviado a confirmación.' : ''}</span>
+              <button onClick={() => setExitoPago(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', fontSize: 16, lineHeight: 1 }} aria-label="Cerrar confirmación">×</button>
+            </div>
+          )}
+          {errorPago && (
+            <div role="alert" style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: '#991b1b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>⚠️ {errorPago}</span>
+              <button onClick={() => setErrorPago('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#991b1b', fontSize: 16, lineHeight: 1 }} aria-label="Cerrar error">×</button>
+            </div>
+          )}
           <div style={p.card}>
             <div style={p.cardHead}>{IC.coin} Cobros pendientes</div>
             <div style={p.cardBody}>
@@ -576,6 +607,7 @@ function Portal({ user, onLogout }) {
               }
             </div>
           </div>
+          </>
         )}
 
         {/* ── Historial ── */}
@@ -1041,6 +1073,8 @@ export default function PortalApoderado() {
   const params                = new URLSearchParams(window.location.search)
   const alumnoKey             = params.get('key')
   const modo                  = params.get('modo') // 'registro'
+  const pagoOk                = params.get('pago') === 'ok'
+  const cobroIdParam          = params.get('cobro') || null
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSesion(session))
@@ -1048,7 +1082,7 @@ export default function PortalApoderado() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const logout = async () => { await supabase.auth.signOut(); setSesion(null) }
+  const logout = async () => { await supabase.auth.signOut(); window.location.href = '/' }
 
   if (sesion === undefined) return (
     <div style={{ minHeight: '100vh', background: '#F2F5FA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1065,5 +1099,5 @@ export default function PortalApoderado() {
   if (!sesion) return <Login onLogin={() => window.location.reload()} />
 
   // Con sesión → portal
-  return <Portal user={sesion.user} onLogout={logout} />
+  return <Portal user={sesion.user} onLogout={logout} pagoOk={pagoOk} cobroIdPago={cobroIdParam} />
 }
