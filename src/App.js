@@ -3466,7 +3466,7 @@ function Login({ vistaInicial = 'login' }) {
 
 // ─── Registro Apoderado (libre, sin alumnoKey) ───────────────────────────────
 // Flujo: datos → verificar_email → buscar_transportista → solicitud_enviada
-function RegistroApoderado() {
+function RegistroApoderado({ tokenInvitacion = null }) {
   const [paso, setPaso]         = useState('datos')
   const [form, setForm]         = useState({ nombre: '', email: '', password: '', confirmar: '' })
   const [uid, setUid]           = useState(null)   // eslint-disable-line no-unused-vars
@@ -3567,6 +3567,29 @@ function RegistroApoderado() {
         await supabase.from('apoderado_perfil').upsert({
           user_id: newUid, nombre, email,
         }, { onConflict: 'user_id' })
+
+        // Si llegamos desde un link de invitación, auto-crear solicitud de cupo
+        if (tokenInvitacion) {
+          try {
+            // Buscar el alumno por su token de invitación
+            const { data: alumno } = await supabase
+              .from('alumnos')
+              .select('user_id')
+              .eq('alumno_key', tokenInvitacion)
+              .maybeSingle()
+            if (alumno?.user_id) {
+              await supabase.from('solicitudes_cupo').insert({
+                apoderado_user_id: newUid,
+                transportista_user_id: alumno.user_id,
+                modalidad: 'completo',
+                nota_apoderado: 'Solicitud generada automáticamente al registrarse vía link de invitación.',
+                estado: 'pendiente',
+              })
+            }
+          } catch (_) {
+            // No bloquear el registro si falla la solicitud automática
+          }
+        }
       }
       setPaso('verificar')
     } catch(err) {
@@ -4320,7 +4343,10 @@ export default function App() {
   if (ruta.startsWith('/registro/')) return <PaginaRegistroToken token={ruta.split('/')[2]} />
 
   // Rutas públicas: registro
-  if (ruta.startsWith('/registro-apoderado')) return <RegistroApoderado />
+  if (ruta.startsWith('/registro-apoderado')) {
+    const tokenInv = new URLSearchParams(window.location.search).get('token')
+    return <RegistroApoderado tokenInvitacion={tokenInv} />
+  }
   if (ruta.startsWith('/registro-transportista')) return <RegistroTransportista />
 
   // Ruta pública: actualizar contraseña (directo o via token recovery en URL)
@@ -4519,7 +4545,7 @@ function PaginaRegistroToken({ token }) {
             Regístrate como apoderado para enviar una solicitud de cupo.
           </p>
           <a
-            href={`/registro-apoderado`}
+            href={`/registro-apoderado?token=${token}`}
             style={{
               display: 'inline-block', padding: '13px 28px', borderRadius: 8,
               background: '#F5C400', color: '#0F2044', fontWeight: 700, fontSize: 15,
