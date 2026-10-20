@@ -71,10 +71,11 @@ serve(async (req) => {
     }
 
     // ── Verificar que el cobro pertenece a este usuario ───────────────────────
+    // cobros → alumno_id → alumno_apoderado.apoderado_user_id = user.id
     const serviceClient = createClient(supabaseUrl, serviceKey)
     const { data: cobro, error: cobroErr } = await serviceClient
       .from('cobros')
-      .select('id, monto, estado, apoderado_id, apoderados(user_id)')
+      .select('id, monto, estado, alumno_id')
       .eq('id', cobro_id)
       .maybeSingle()
 
@@ -83,11 +84,22 @@ serve(async (req) => {
         status: 404, headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
-    if (cobro.apoderados?.user_id !== user.id) {
+
+    // Verificar que el apoderado autenticado está vinculado al alumno de este cobro
+    const { data: vinculo } = await serviceClient
+      .from('alumno_apoderado')
+      .select('id')
+      .eq('alumno_id', cobro.alumno_id)
+      .eq('apoderado_user_id', user.id)
+      .eq('activo', true)
+      .maybeSingle()
+
+    if (!vinculo) {
       return new Response(JSON.stringify({ error: 'No autorizado para este cobro' }), {
         status: 403, headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
+
     if (cobro.estado === 'pagado') {
       return new Response(JSON.stringify({ error: 'Este cobro ya fue pagado' }), {
         status: 409, headers: { ...CORS, 'Content-Type': 'application/json' },
@@ -110,9 +122,9 @@ serve(async (req) => {
       amount:          String(Math.round(Number(monto))),
       email:           user.email || '',
       paymentMethod:   '9', // 9 = todos los medios disponibles
-      urlConfirmation: `${appUrl}/api/flow-confirmar`,   // webhook que actualiza cobro
+      urlConfirmation: `${appUrl}/api/flow-confirmar`,
       urlReturn:       `${appUrl}/portal?pago=ok&cobro=${cobro_id}`,
-      optional:        JSON.stringify({ cobro_id, apoderado_id: cobro.apoderado_id, origen }),
+      optional:        JSON.stringify({ cobro_id, alumno_id: cobro.alumno_id, origen }),
     }
 
     // Agregar firma
