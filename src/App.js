@@ -1317,6 +1317,99 @@ function Avisos() {
 }
 
 // ─── Home / Resumen general ───────────────────────────────────────────────────
+// ─── Banner de perfil incompleto ─────────────────────────────────────────────
+// Muestra un checklist con los pasos pendientes para que el transportista
+// aparezca en el marketplace. Se oculta cuando todo está completo.
+function BannerPerfilIncompleto({ pasos, onNavegar }) {
+  const [cerrado, setCerrado] = useState(false)
+  if (cerrado || pasos.length === 0) return null
+  const totalPasos  = pasos.length + pasos.filter(p => p.listo).length  // aprox total
+  const listos      = pasos.filter(p => p.listo).length
+  const pendientes  = pasos.filter(p => !p.listo)
+
+  return (
+    <div
+      role="region"
+      aria-label="Pasos pendientes para activar tu perfil"
+      style={{
+        background: 'linear-gradient(135deg, #FFF7D6 0%, #FFFBEA 100%)',
+        border: '1.5px solid #F5C400',
+        borderRadius: 14,
+        padding: '16px 18px',
+        marginBottom: 24,
+        position: 'relative',
+      }}
+    >
+      {/* Botón cerrar */}
+      <button
+        onClick={() => setCerrado(true)}
+        aria-label="Descartar aviso"
+        style={{
+          position: 'absolute', top: 12, right: 12,
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: '#92400E', fontSize: 18, lineHeight: 1, padding: 4,
+        }}
+      >×</button>
+
+      {/* Cabecera */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="10" fill="#F5C400" stroke="#D4A800" strokeWidth="1.5"/>
+          <path d="M11 6v5.5l3 2" stroke="#0F2044" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+        <div>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#0F2044' }}>
+            Activa tu perfil en el marketplace
+          </p>
+          <p style={{ margin: 0, fontSize: 12, color: '#92400E' }}>
+            {pendientes.length} {pendientes.length === 1 ? 'paso pendiente' : 'pasos pendientes'} para aparecer en búsquedas
+          </p>
+        </div>
+      </div>
+
+      {/* Lista de pasos */}
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {pasos.map((paso) => (
+          <li key={paso.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Indicador listo/pendiente */}
+            {paso.listo
+              ? <span aria-label="Completado" style={{
+                  width: 20, height: 20, borderRadius: '50%', background: '#D1FAE5',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M2 6l3 3 5-5" stroke="#059669" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </span>
+              : <span aria-label="Pendiente" style={{
+                  width: 20, height: 20, borderRadius: '50%', border: '2px solid #F5C400',
+                  background: '#fff', flexShrink: 0,
+                }} />
+            }
+            <span style={{ fontSize: 13, color: paso.listo ? '#6B7280' : '#0F2044', flex: 1,
+              textDecoration: paso.listo ? 'line-through' : 'none' }}>
+              {paso.texto}
+            </span>
+            {/* Acción directa si está pendiente */}
+            {!paso.listo && paso.accion && (
+              <button
+                onClick={() => onNavegar(paso.accion)}
+                style={{
+                  background: '#0F2044', color: '#F5C400', border: 'none',
+                  borderRadius: 8, padding: '4px 12px', fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                Ir →
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function Home({ onNavegar }) {
   const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
   const meses      = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
@@ -1325,6 +1418,7 @@ function Home({ onNavegar }) {
 
   const [datos, setDatos]     = useState(null)
   const [cargando, setCarg]   = useState(true)
+  const [pasosPerfil, setPasosPerfil] = useState([])
 
   useEffect(() => {
     const cargar = async () => {
@@ -1341,6 +1435,7 @@ function Home({ onNavegar }) {
         { data: asistHoy },
         { count: nAlumnosActivos },
         { data: ultimoAviso },
+        { data: perfil },
       ] = await Promise.all([
         supabase.from('apoderados').select('*', { count: 'exact', head: true }).eq('user_id', uid),
         supabase.from('alumnos').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('activo', true),
@@ -1349,12 +1444,34 @@ function Home({ onNavegar }) {
         supabase.from('asistencia').select('presente').eq('user_id', uid).eq('fecha', fechaHoy).eq('tipo', 'ida'),
         supabase.from('alumnos').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('activo', true),
         supabase.from('avisos').select('mensaje, created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(1),
+        supabase.from('transportista_perfil').select('visible, telefono, nombre, colegios').eq('user_id', uid).maybeSingle(),
       ])
       const pendiente = (cobros || []).filter(c => !c.pagado).reduce((a, c) => a + Number(c.monto), 0)
       const presentes = (asistHoy || []).filter(a => a.presente).length
       const aviso     = ultimoAviso && ultimoAviso.length > 0 ? ultimoAviso[0] : null
       const tiempoAviso = aviso ? tiempoRelativo(aviso.created_at) : null
       setDatos({ nApoderados, nAlumnos, pendiente, nRutas, presentes, nAlumnosActivos, aviso, tiempoAviso })
+
+      // Evaluar pasos del banner
+      const emailConf = user.email_confirmed_at != null
+      const tieneNombre = !!(perfil?.nombre?.trim())
+      const tieneTelefono = !!(perfil?.telefono?.trim())
+      const tieneColegios = Array.isArray(perfil?.colegios) ? perfil.colegios.length > 0 : !!(perfil?.colegios)
+      const tieneRutas = (nRutas ?? 0) > 0
+      const estaVisible = perfil?.visible === true
+
+      const pasos = [
+        { id: 'email',    texto: 'Confirma tu correo electrónico',        listo: emailConf,      accion: null },
+        { id: 'nombre',   texto: 'Completa tu nombre en el perfil',       listo: tieneNombre,    accion: 'perfil' },
+        { id: 'telefono', texto: 'Agrega tu número de teléfono',          listo: tieneTelefono,  accion: 'perfil' },
+        { id: 'colegios', texto: 'Indica los colegios que atiendes',      listo: tieneColegios,  accion: 'perfil' },
+        { id: 'rutas',    texto: 'Crea al menos una ruta',                listo: tieneRutas,     accion: 'rutas'  },
+        { id: 'visible',  texto: 'Activa tu perfil para aparecer en búsquedas', listo: estaVisible, accion: 'perfil' },
+      ]
+      // Solo mostrar el banner si hay al menos un paso pendiente
+      const hayPendientes = pasos.some(p => !p.listo)
+      setPasosPerfil(hayPendientes ? pasos : [])
+
       setCarg(false)
     }
     cargar()
@@ -1384,6 +1501,8 @@ function Home({ onNavegar }) {
         <h2 style={{ ...s.vtitulo, fontSize: 22, marginBottom: 4 }}>¡Bienvenido!</h2>
         <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>{fechaLabel}</p>
       </div>
+
+      <BannerPerfilIncompleto pasos={pasosPerfil} onNavegar={onNavegar} />
 
       {cargando ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
@@ -2950,6 +3069,7 @@ function resetIntentos() {
 // ─── Login ────────────────────────────────────────────────────────────────────
 function Login({ vistaInicial = 'login' }) {
   const [vista, setVista]           = useState(vistaInicial) // 'login' | 'recuperar' | 'recuperar_ok'
+  const [rol, setRol]               = useState('transportista') // 'transportista' | 'apoderado'
   const [email, setEmail]           = useState('')
   const [password, setPassword]     = useState('')
   const [error, setError]           = useState('')
@@ -3055,6 +3175,21 @@ function Login({ vistaInicial = 'login' }) {
         <h1 style={s.titulo}>Furcole</h1>
         <p style={s.subtitulo}>Gestión de transporte escolar</p>
 
+        {/* Tabs de rol */}
+        {vista === 'login' && (
+          <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 10, padding: 4, marginBottom: 20, gap: 4 }} role="tablist">
+            {[['transportista', 'Transportista'], ['apoderado', 'Apoderado']].map(([v, label]) => (
+              <button key={v} role="tab" aria-selected={rol === v}
+                onClick={() => setRol(v)}
+                style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'all .15s',
+                  background: rol === v ? '#0F2044' : 'transparent',
+                  color: rol === v ? '#F5C400' : '#64748b' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {vista === 'login' && (
           <form onSubmit={handleLogin} style={s.form} noValidate>
             <label style={s.labelLogin} htmlFor="login-email">Correo electrónico</label>
@@ -3103,6 +3238,14 @@ function Login({ vistaInicial = 'login' }) {
             >
               ¿Olvidaste tu contraseña?
             </button>
+            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 16 }}>
+              <span style={{ fontSize: 13, color: '#64748b' }}>¿No tienes cuenta? </span>
+              <button type="button"
+                style={{ background: 'none', border: 'none', color: '#0F2044', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                onClick={() => window.location.href = rol === 'apoderado' ? '/registro-apoderado' : '/registro-transportista'}>
+                Crear cuenta
+              </button>
+            </div>
           </form>
         )}
 
@@ -3146,6 +3289,374 @@ function Login({ vistaInicial = 'login' }) {
             </button>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Registro Apoderado (libre, sin alumnoKey) ───────────────────────────────
+function RegistroApoderado() {
+  const [paso, setPaso]       = useState('datos') // 'datos' | 'verificar'
+  const [form, setForm]       = useState({ nombre: '', email: '', password: '', confirmar: '' })
+  const [error, setError]     = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [mostrarPass, setMostrarPass] = useState(false)
+
+  const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const sanitizar = str => str.trim().slice(0, 254)
+
+  async function registrar(e) {
+    e.preventDefault()
+    setError('')
+    const nombre   = sanitizar(form.nombre)
+    const email    = sanitizar(form.email).toLowerCase()
+    const password = form.password
+    if (!nombre)                      { setError('Ingresa tu nombre completo'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Ingresa un email válido'); return }
+    if (password.length < 8)          { setError('La contraseña debe tener al menos 8 caracteres'); return }
+    if (password !== form.confirmar)  { setError('Las contraseñas no coinciden'); return }
+    setEnviando(true)
+    try {
+      const { data, error: authErr } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { nombre, rol: 'apoderado' } }
+      })
+      if (authErr) throw authErr
+      const uid = data?.user?.id
+      if (uid) {
+        await supabase.from('apoderado_perfil').upsert({
+          user_id: uid, nombre, email,
+        }, { onConflict: 'user_id' })
+      }
+      setPaso('verificar')
+    } catch(err) {
+      setError(err.message || 'Error al registrarse')
+    } finally { setEnviando(false) }
+  }
+
+  if (paso === 'verificar') return (
+    <div style={s.fondo}>
+      <div style={s.card} role="main">
+        <div style={s.logo}>{IC.busLarge}</div>
+        <h1 style={s.titulo}>Furcole</h1>
+        <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 24px' }}>Revisa tu email</p>
+        <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 20 }}>
+          Enviamos un link de confirmación a <strong>{form.email}</strong>.<br/>
+          Confírmalo y luego inicia sesión.
+        </p>
+        <button style={s.btn} onClick={() => window.location.href = '/portal'}>Ir al portal</button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={s.fondo}>
+      <div style={s.card} role="main">
+        <div style={s.logo} aria-hidden="true">{IC.busLarge}</div>
+        <h1 style={s.titulo}>Furcole</h1>
+        <p style={s.subtitulo}>Crear cuenta — Apoderado</p>
+        <form onSubmit={registrar} style={s.form} noValidate>
+          <label style={s.labelLogin} htmlFor="ra-nombre">Nombre completo</label>
+          <input id="ra-nombre" style={s.input} type="text" placeholder="Juan Pérez"
+            value={form.nombre} onChange={e => f('nombre', e.target.value)}
+            required maxLength={120} autoComplete="name" />
+          <label style={s.labelLogin} htmlFor="ra-email">Correo electrónico</label>
+          <input id="ra-email" style={s.input} type="email" placeholder="correo@ejemplo.com"
+            value={form.email} onChange={e => f('email', e.target.value)}
+            required maxLength={254} autoComplete="email" />
+          <label style={s.labelLogin} htmlFor="ra-pass">Contraseña</label>
+          <div style={{ position: 'relative', width: '100%', display: 'block' }}>
+            <input id="ra-pass" style={{ ...s.input, paddingRight: 40 }}
+              type={mostrarPass ? 'text' : 'password'} placeholder="Mínimo 8 caracteres"
+              value={form.password} onChange={e => f('password', e.target.value)}
+              required maxLength={128} autoComplete="new-password" />
+            <button type="button" onClick={() => setMostrarPass(v => !v)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0, lineHeight: 1 }}
+              aria-label={mostrarPass ? 'Ocultar contraseña' : 'Mostrar contraseña'} tabIndex={-1}>
+              {mostrarPass
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>
+                : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
+            </button>
+          </div>
+          <label style={s.labelLogin} htmlFor="ra-confirmar">Confirmar contraseña</label>
+          <input id="ra-confirmar" style={s.input} type="password" placeholder="Repite tu contraseña"
+            value={form.confirmar} onChange={e => f('confirmar', e.target.value)}
+            required maxLength={128} autoComplete="new-password" />
+          {error && <p style={s.errorMsg} role="alert">{error}</p>}
+          <button style={s.btn} type="submit" disabled={enviando}>
+            {enviando ? 'Creando cuenta…' : 'Crear cuenta'}
+          </button>
+        </form>
+        <button type="button"
+          style={{ background: 'none', border: 'none', color: '#0F2044', fontSize: 13, cursor: 'pointer', marginTop: 8, textDecoration: 'underline' }}
+          onClick={() => window.location.href = '/'}>
+          ← Volver al inicio de sesión
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Registro Transportista ───────────────────────────────────────────────────
+function RegistroTransportista() {
+  // paso: 'datos' → 'rntp' → 'cuenta' → 'email_enviado'
+  const [paso, setPaso]         = useState('datos')
+  const [form, setForm]         = useState({ nombre: '', email: '', password: '', confirmar: '', patente: '', telefono: '' })
+  const [rntp, setRntp]         = useState(null)   // { estado, mensaje, datos }
+  const [verificando, setVerificando] = useState(false)
+  const [error, setError]       = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [mostrarPass, setMostrarPass] = useState(false)
+
+  const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const sanitizar = str => str.trim().slice(0, 254)
+  const FNURL = process.env.REACT_APP_SUPABASE_URL?.replace(/\/$/, '') + '/functions/v1/verificar-patente'
+
+  // ── Paso 1: verificar patente en RNTP ──────────────────
+  async function verificarPatente(e) {
+    e.preventDefault()
+    setError('')
+    const patente = sanitizar(form.patente).toUpperCase().replace(/[\s\-\.]/g, '')
+    if (!patente || patente.length < 4) { setError('Ingresa una patente válida'); return }
+    setVerificando(true)
+    try {
+      const res = await fetch(FNURL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': process.env.REACT_APP_SUPABASE_ANON_KEY || '' },
+        body: JSON.stringify({ patente }),
+      })
+      const data = await res.json()
+      setRntp(data)
+      setPaso('rntp')
+    } catch {
+      // Si falla la edge function, permitimos continuar con estado 'error'
+      setRntp({ estado: 'error', mensaje: 'No fue posible contactar el RNTP. Puedes continuar de todos modos; tu cuenta quedará en revisión.', datos: { patente } })
+      setPaso('rntp')
+    } finally { setVerificando(false) }
+  }
+
+  // ── Paso 2: crear cuenta ───────────────────────────────
+  async function registrar(e) {
+    e.preventDefault()
+    setError('')
+    const nombre   = sanitizar(form.nombre)
+    const email    = sanitizar(form.email).toLowerCase()
+    const patente  = sanitizar(form.patente).toUpperCase().replace(/[\s\-\.]/g, '')
+    const telefono = sanitizar(form.telefono)
+    const password = form.password
+    if (!nombre)                      { setError('Ingresa tu nombre completo'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Ingresa un email válido'); return }
+    if (password.length < 8)          { setError('La contraseña debe tener al menos 8 caracteres'); return }
+    if (password !== form.confirmar)  { setError('Las contraseñas no coinciden'); return }
+    setEnviando(true)
+    try {
+      const { data, error: authErr } = await supabase.auth.signUp({
+        email, password,
+        options: { data: { nombre, rol: 'transportista' } }
+      })
+      if (authErr) throw authErr
+      const uid = data?.user?.id
+      if (uid) {
+        const datosRntp = rntp?.datos ?? {}
+        await supabase.from('transportista_perfil').upsert({
+          user_id: uid, patente, telefono: telefono || null,
+          visible: false, precios_publicos: false,
+          tipo_servicio: datosRntp.tipo_servicio ?? null,
+          capacidad: datosRntp.capacidad ? parseInt(datosRntp.capacidad, 10) : null,
+          region: datosRntp.region ?? null,
+          marca: datosRntp.marca ?? null,
+          modelo: datosRntp.modelo ?? null,
+          anio_fabricacion: datosRntp.anio_fabricacion ? parseInt(datosRntp.anio_fabricacion, 10) : null,
+        }, { onConflict: 'user_id' })
+        // Registrar resultado de verificación RNTP
+        await supabase.from('transportista_verificacion').upsert({
+          user_id: uid, patente,
+          estado: rntp?.estado ?? 'pendiente',
+          datos_rntp: rntp?.datos ?? null,
+          verificado_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' })
+        // Log historial
+        await supabase.from('historial_cambios').insert({
+          entidad: 'transportista', entidad_id: uid,
+          campo: 'registro', valor_anterior: null,
+          valor_nuevo: JSON.stringify({ patente, estado_rntp: rntp?.estado }),
+          realizado_por: uid,
+        })
+      }
+      setPaso('email_enviado')
+    } catch(err) {
+      setError(err.message || 'Error al registrarse')
+    } finally { setEnviando(false) }
+  }
+
+  // ── Pantalla: email enviado ────────────────────────────
+  if (paso === 'email_enviado') return (
+    <div style={s.fondo}>
+      <div style={s.card} role="main">
+        <div style={s.logo}>{IC.busLarge}</div>
+        <h1 style={s.titulo}>Furcole</h1>
+        <p style={{ fontSize: 15, fontWeight: 700, color: '#0F2044', margin: '0 0 8px' }}>¡Cuenta creada!</p>
+        <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 20 }}>
+          Enviamos un link de confirmación a <strong>{form.email}</strong>.<br/>
+          Confírmalo y luego inicia sesión para completar tu perfil.
+        </p>
+        <button style={s.btn} onClick={() => window.location.href = '/'}>Ir a iniciar sesión</button>
+      </div>
+    </div>
+  )
+
+  // ── Pantalla: resultado RNTP ───────────────────────────
+  if (paso === 'rntp') {
+    const esVerificado   = rntp?.estado === 'verificado'
+    const esNoEncontrado = rntp?.estado === 'no_encontrado'
+    const colorEstado    = esVerificado ? '#16a34a' : esNoEncontrado ? '#dc2626' : '#d97706'
+    const iconEstado     = esVerificado
+      ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      : esNoEncontrado
+      ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      : <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+
+    return (
+      <div style={s.fondo}>
+        <div style={{ ...s.card, maxWidth: 420 }} role="main">
+          <div style={s.logo}>{IC.busLarge}</div>
+          <h1 style={s.titulo}>Furcole</h1>
+          <div style={{ margin: '0 0 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            {iconEstado}
+            <span style={{ fontSize: 13, fontWeight: 700, color: colorEstado }}>
+              {esVerificado ? 'Vehículo autorizado en RNTP' : esNoEncontrado ? 'Patente no encontrada en RNTP' : 'No se pudo verificar el RNTP'}
+            </span>
+          </div>
+          <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 16, textAlign: 'left', background: '#f8fafc', borderRadius: 8, padding: '10px 12px' }}>
+            {rntp?.mensaje}
+          </p>
+          {esVerificado && rntp?.datos?.vencimiento && (
+            <div style={{ fontSize: 12, color: '#64748b', background: '#f0fdf4', borderRadius: 8, padding: '8px 12px', marginBottom: 16, textAlign: 'left' }}>
+              <strong>Vencimiento RNTP:</strong> {rntp.datos.vencimiento}
+            </div>
+          )}
+          {esNoEncontrado && (
+            <div style={{ fontSize: 12, color: '#7c3aed', background: '#faf5ff', borderRadius: 8, padding: '8px 12px', marginBottom: 16, textAlign: 'left' }}>
+              Puedes crear igual tu cuenta. Quedará marcada como «pendiente de verificación» hasta que regularices tu inscripción en el RNTP.
+            </div>
+          )}
+          {esVerificado && rntp?.datos && (
+            <div style={{ fontSize: 12, color: '#374151', background: '#f8fafc', borderRadius: 8, padding: '10px 12px', marginBottom: 16, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {rntp.datos.tipo_servicio && <span><strong>Tipo:</strong> {rntp.datos.tipo_servicio}</span>}
+              {rntp.datos.capacidad && <span><strong>Capacidad:</strong> {rntp.datos.capacidad} pasajeros</span>}
+              {rntp.datos.marca && rntp.datos.modelo && <span><strong>Vehículo:</strong> {rntp.datos.marca} {rntp.datos.modelo} ({rntp.datos.anio_fabricacion})</span>}
+              {rntp.datos.responsable && <span><strong>Responsable:</strong> {rntp.datos.responsable}</span>}
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button style={s.btn} onClick={() => {
+              // Pre-llenar nombre con el responsable del RNTP si está disponible
+              if (rntp?.datos?.responsable && !form.nombre) {
+                const nombreRntp = rntp.datos.responsable
+                  .toLowerCase()
+                  .replace(/\b\w/g, c => c.toUpperCase())
+                setForm(p => ({ ...p, nombre: nombreRntp }))
+              }
+              setPaso('cuenta')
+            }}>
+              {esVerificado ? 'Continuar con el registro →' : 'Continuar de todos modos →'}
+            </button>
+            <button type="button"
+              style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={() => { setPaso('datos'); setRntp(null); setError('') }}>
+              ← Cambiar patente
+            </button>
+          </div>
+          <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 12, textAlign: 'center' }}>
+            Fuente: <a href="http://apps.mtt.cl/consultaweb/" target="_blank" rel="noopener noreferrer" style={{ color: '#94a3b8' }}>Registro Nacional de Transporte — MTT Chile</a>
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Pantalla: datos de cuenta (paso 'cuenta') ──────────
+  if (paso === 'cuenta') return (
+    <div style={s.fondo}>
+      <div style={s.card} role="main">
+        <div style={s.logo} aria-hidden="true">{IC.busLarge}</div>
+        <h1 style={s.titulo}>Furcole</h1>
+        <p style={s.subtitulo}>Datos de cuenta</p>
+        <form onSubmit={registrar} style={s.form} noValidate>
+          <label style={s.labelLogin} htmlFor="rt-nombre">Nombre completo</label>
+          <input id="rt-nombre" style={s.input} type="text" placeholder="María González"
+            value={form.nombre} onChange={e => f('nombre', e.target.value)}
+            required maxLength={120} autoComplete="name" autoFocus />
+          <label style={s.labelLogin} htmlFor="rt-email">Correo electrónico</label>
+          <input id="rt-email" style={s.input} type="email" placeholder="correo@ejemplo.com"
+            value={form.email} onChange={e => f('email', e.target.value)}
+            required maxLength={254} autoComplete="email" />
+          <label style={s.labelLogin} htmlFor="rt-tel">Teléfono (opcional)</label>
+          <input id="rt-tel" style={s.input} type="tel" placeholder="+56 9 1234 5678"
+            value={form.telefono} onChange={e => f('telefono', e.target.value)}
+            maxLength={20} autoComplete="tel" />
+          <label style={s.labelLogin} htmlFor="rt-pass">Contraseña</label>
+          <div style={{ position: 'relative', width: '100%', display: 'block' }}>
+            <input id="rt-pass" style={{ ...s.input, paddingRight: 40 }}
+              type={mostrarPass ? 'text' : 'password'} placeholder="Mínimo 8 caracteres"
+              value={form.password} onChange={e => f('password', e.target.value)}
+              required maxLength={128} autoComplete="new-password" />
+            <button type="button" onClick={() => setMostrarPass(v => !v)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0, lineHeight: 1 }}
+              aria-label={mostrarPass ? 'Ocultar contraseña' : 'Mostrar contraseña'} tabIndex={-1}>
+              {mostrarPass
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>
+                : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
+            </button>
+          </div>
+          <label style={s.labelLogin} htmlFor="rt-confirmar">Confirmar contraseña</label>
+          <input id="rt-confirmar" style={s.input} type="password" placeholder="Repite tu contraseña"
+            value={form.confirmar} onChange={e => f('confirmar', e.target.value)}
+            required maxLength={128} autoComplete="new-password" />
+          {error && <p style={s.errorMsg} role="alert">{error}</p>}
+          <button style={s.btn} type="submit" disabled={enviando}>
+            {enviando ? 'Creando cuenta…' : 'Crear cuenta'}
+          </button>
+        </form>
+        <button type="button"
+          style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', marginTop: 8, textDecoration: 'underline' }}
+          onClick={() => setPaso('rntp')}>
+          ← Volver
+        </button>
+      </div>
+    </div>
+  )
+
+  // ── Pantalla inicial: ingresar patente ─────────────────
+  return (
+    <div style={s.fondo}>
+      <div style={s.card} role="main">
+        <div style={s.logo} aria-hidden="true">{IC.busLarge}</div>
+        <h1 style={s.titulo}>Furcole</h1>
+        <p style={s.subtitulo}>Registro de transportista</p>
+        <div style={{ background: '#f0f7ff', borderRadius: 10, padding: '12px 14px', marginBottom: 20, fontSize: 13, color: '#374151', textAlign: 'left', lineHeight: 1.6 }}>
+          Primero verificaremos tu patente en el <strong>Registro Nacional de Transporte Escolar</strong> del MTT.
+        </div>
+        <form onSubmit={verificarPatente} style={s.form} noValidate>
+          <label style={s.labelLogin} htmlFor="rt-patente">Patente del furgón escolar</label>
+          <input id="rt-patente"
+            style={{ ...s.input, textTransform: 'uppercase', letterSpacing: 3, fontSize: 18, fontWeight: 700, textAlign: 'center' }}
+            type="text" placeholder="ABCD12"
+            value={form.patente} onChange={e => f('patente', e.target.value.toUpperCase())}
+            required maxLength={8} autoComplete="off" autoFocus />
+          {error && <p style={s.errorMsg} role="alert">{error}</p>}
+          <button style={s.btn} type="submit" disabled={verificando}>
+            {verificando ? 'Consultando RNTP…' : 'Verificar en el RNTP →'}
+          </button>
+        </form>
+        <button type="button"
+          style={{ background: 'none', border: 'none', color: '#0F2044', fontSize: 13, cursor: 'pointer', marginTop: 8, textDecoration: 'underline' }}
+          onClick={() => window.location.href = '/'}>
+          ← Volver al inicio de sesión
+        </button>
       </div>
     </div>
   )
@@ -3298,6 +3809,10 @@ export default function App() {
 
   // Ruta pública: portal apoderado
   if (ruta.startsWith('/portal')) return <PortalApoderado />
+
+  // Rutas públicas: registro
+  if (ruta.startsWith('/registro-apoderado')) return <RegistroApoderado />
+  if (ruta.startsWith('/registro-transportista')) return <RegistroTransportista />
 
   // Ruta pública: actualizar contraseña (directo o via token recovery en URL)
   if (ruta.startsWith('/actualizar-password') || esRecovery) return <ActualizarPassword />
