@@ -1454,8 +1454,6 @@ function Avisos() {
 function BannerPerfilIncompleto({ pasos, onNavegar }) {
   const [cerrado, setCerrado] = useState(false)
   if (cerrado || pasos.length === 0) return null
-  const totalPasos  = pasos.length + pasos.filter(p => p.listo).length  // aprox total
-  const listos      = pasos.filter(p => p.listo).length
   const pendientes  = pasos.filter(p => !p.listo)
 
   return (
@@ -3466,7 +3464,7 @@ function Login({ vistaInicial = 'login' }) {
 function RegistroApoderado() {
   const [paso, setPaso]         = useState('datos')
   const [form, setForm]         = useState({ nombre: '', email: '', password: '', confirmar: '' })
-  const [uid, setUid]           = useState(null)   // user_id post-registro
+  const [uid, setUid]           = useState(null)   // eslint-disable-line no-unused-vars
   const [error, setError]       = useState('')
   const [enviando, setEnviando] = useState(false)
   const [mostrarPass, setMostrarPass] = useState(false)
@@ -3872,7 +3870,7 @@ function RegistroTransportista() {
   async function verificarPatente(e) {
     e.preventDefault()
     setError('')
-    const patente = sanitizar(form.patente).toUpperCase().replace(/[\s\-\.]/g, '')
+    const patente = sanitizar(form.patente).toUpperCase().replace(/[\s-.]/g, '')
     if (!patente || patente.length < 4) { setError('Ingresa una patente válida'); return }
     setVerificando(true)
     try {
@@ -3897,7 +3895,7 @@ function RegistroTransportista() {
     setError('')
     const nombre   = sanitizar(form.nombre)
     const email    = sanitizar(form.email).toLowerCase()
-    const patente  = sanitizar(form.patente).toUpperCase().replace(/[\s\-\.]/g, '')
+    const patente  = sanitizar(form.patente).toUpperCase().replace(/[\s-.]/g, '')
     const telefono = sanitizar(form.telefono)
     const password = form.password
     if (!nombre)                      { setError('Ingresa tu nombre completo'); return }
