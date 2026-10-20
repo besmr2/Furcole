@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
-
+import { HistorialCambios, FlujoCambioEstablecimiento } from './App'
 // ─── Fonts ───────────────────────────────────────────────────────────────────
 ;(function injectFonts() {
   if (typeof document === 'undefined') return
@@ -254,6 +254,7 @@ function Portal({ user, onLogout }) {
   const [cargando, setCargando]   = useState(true)
   const [seccion, setSeccion]     = useState('cobros')
   const [pagando, setPagando]     = useState(null) // cobro siendo pagado
+  const [cambiarTp, setCambiarTp] = useState(false) // modal cambio transportista
   // Realtime: último evento de subida/bajada recibido
   const [eventoRealtime, setEventoRealtime] = useState(null) // { tipo, nombre, hora }
 
@@ -579,33 +580,38 @@ function Portal({ user, onLogout }) {
 
         {/* ── Historial ── */}
         {seccion === 'historial' && (
-          <div style={p.card}>
-            <div style={p.cardHead}>{IC.hist} Historial de pagos</div>
-            <div style={p.cardBody}>
-              {cobrosHistorial.length === 0
-                ? <p style={{ color: '#64748b', fontSize: 14, textAlign: 'center', padding: '16px 0' }}>Aún no hay pagos registrados</p>
-                : <>
-                    <div style={p.tabHead}><span>Alumno / Mes</span><span>Monto</span><span>Estado</span></div>
-                    {cobrosHistorial.map(c => (
-                      <div key={c.id} style={p.tabRow}>
-                        <div>
-                          <div style={{ fontWeight: 500, color: '#0F2044' }}>{c.alumnos?.nombre}</div>
-                          <div style={{ fontSize: 12, color: '#94a3b8' }}>{c.mes}</div>
+          <>
+            <div style={p.card}>
+              <div style={p.cardHead}>{IC.hist} Historial de pagos</div>
+              <div style={p.cardBody}>
+                {cobrosHistorial.length === 0
+                  ? <p style={{ color: '#64748b', fontSize: 14, textAlign: 'center', padding: '16px 0' }}>Aún no hay pagos registrados</p>
+                  : <>
+                      <div style={p.tabHead}><span>Alumno / Mes</span><span>Monto</span><span>Estado</span></div>
+                      {cobrosHistorial.map(c => (
+                        <div key={c.id} style={p.tabRow}>
+                          <div>
+                            <div style={{ fontWeight: 500, color: '#0F2044' }}>{c.alumnos?.nombre}</div>
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>{c.mes}</div>
+                          </div>
+                          <span style={{ fontWeight: 600, color: '#0F2044' }}>{formatCLP(c.monto)}</span>
+                          <span style={{
+                            ...p.chip,
+                            background: c.estado === 'pagado' ? '#dcfce7' : '#fee2e2',
+                            color: c.estado === 'pagado' ? '#166534' : '#991b1b',
+                          }}>
+                            {c.estado === 'pagado' ? '✓ Pagado' : c.estado}
+                          </span>
                         </div>
-                        <span style={{ fontWeight: 600, color: '#0F2044' }}>{formatCLP(c.monto)}</span>
-                        <span style={{
-                          ...p.chip,
-                          background: c.estado === 'pagado' ? '#dcfce7' : '#fee2e2',
-                          color: c.estado === 'pagado' ? '#166534' : '#991b1b',
-                        }}>
-                          {c.estado === 'pagado' ? '✓ Pagado' : c.estado}
-                        </span>
-                      </div>
-                    ))}
-                  </>
-              }
+                      ))}
+                    </>
+                }
+              </div>
             </div>
-          </div>
+
+            {/* Actividad de cuenta */}
+            <HistorialCambios propietario_id={user.id} entidad="apoderado" />
+          </>
         )}
 
         {/* ── Buscar transporte (solo si !tieneTransporte) ── */}
@@ -615,6 +621,7 @@ function Portal({ user, onLogout }) {
 
         {/* ── Transportista ── */}
         {seccion === 'transportista' && (
+          <>
           <div style={p.card}>
             <div style={p.cardHead}>{IC.user} Tu transportista</div>
             {transportista ? (
@@ -661,6 +668,13 @@ function Portal({ user, onLogout }) {
                       💬 Contactar por WhatsApp
                     </a>
                   )}
+                  <button
+                    onClick={() => setCambiarTp(true)}
+                    style={{ ...p.btnOut, marginTop: 12, width: '100%', boxSizing: 'border-box', textAlign: 'center', justifyContent: 'center' }}
+                    aria-expanded={cambiarTp}
+                  >
+                    🔄 Cambiar establecimiento / transportista
+                  </button>
                 </div>
               </>
             ) : (
@@ -669,6 +683,17 @@ function Portal({ user, onLogout }) {
               </div>
             )}
           </div>
+
+          {/* Flujo cambio establecimiento — se expande inline bajo la tarjeta */}
+          {cambiarTp && vinculos[0] && (
+            <FlujoCambioEstablecimiento
+              alumnoId={vinculos[0].alumno_id}
+              alumnoNombre={vinculos[0].alumnos?.nombre}
+              userId={user.id}
+              onCerrar={() => { setCambiarTp(false); cargar() }}
+            />
+          )}
+          </>
         )}
       </div>
 
