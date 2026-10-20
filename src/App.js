@@ -1564,7 +1564,7 @@ function Home({ onNavegar }) {
         { data: asistHoy },
         { count: nAlumnosActivos },
         { data: ultimoAviso },
-        { data: perfil },
+        { data: perfilMkt },
       ] = await Promise.all([
         supabase.from('apoderados').select('*', { count: 'exact', head: true }).eq('user_id', uid),
         supabase.from('alumnos').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('activo', true),
@@ -1573,7 +1573,12 @@ function Home({ onNavegar }) {
         supabase.from('asistencia').select('presente').eq('user_id', uid).eq('fecha', fechaHoy).eq('tipo', 'ida'),
         supabase.from('alumnos').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('activo', true),
         supabase.from('avisos').select('mensaje, created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(1),
-        supabase.from('transportista_perfil').select('visible, telefono, nombre, colegios').eq('user_id', uid).maybeSingle(),
+        supabase.from('transportista_perfil').select('visible').eq('user_id', uid).maybeSingle(),
+      ])
+      // Consultas adicionales para el banner de perfil (tablas separadas)
+      const [{ data: perfilBase }, { count: nColegios }] = await Promise.all([
+        supabase.from('perfil_transportista').select('nombre, telefono').eq('user_id', uid).maybeSingle(),
+        supabase.from('transportista_colegios').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('activo', true),
       ])
       const pendiente = (cobros || []).filter(c => !c.pagado).reduce((a, c) => a + Number(c.monto), 0)
       const presentes = (asistHoy || []).filter(a => a.presente).length
@@ -1581,13 +1586,13 @@ function Home({ onNavegar }) {
       const tiempoAviso = aviso ? tiempoRelativo(aviso.created_at) : null
       setDatos({ nApoderados, nAlumnos, pendiente, nRutas, presentes, nAlumnosActivos, aviso, tiempoAviso })
 
-      // Evaluar pasos del banner
-      const emailConf = user.email_confirmed_at != null
-      const tieneNombre = !!(perfil?.nombre?.trim())
-      const tieneTelefono = !!(perfil?.telefono?.trim())
-      const tieneColegios = Array.isArray(perfil?.colegios) ? perfil.colegios.length > 0 : !!(perfil?.colegios)
-      const tieneRutas = (nRutas ?? 0) > 0
-      const estaVisible = perfil?.visible === true
+      // Evaluar pasos del banner (perfil es transportista_perfil, perfilBase es perfil_transportista)
+      const emailConf     = user.email_confirmed_at != null
+      const tieneNombre   = !!(perfilBase?.nombre?.trim())
+      const tieneTelefono = !!(perfilBase?.telefono?.trim())
+      const tieneColegios = (nColegios ?? 0) > 0
+      const tieneRutas    = (nRutas ?? 0) > 0
+      const estaVisible   = perfilMkt?.visible === true
 
       const pasos = [
         { id: 'email',    texto: 'Confirma tu correo electrónico',        listo: emailConf,      accion: null },
