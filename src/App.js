@@ -3574,21 +3574,40 @@ function RegistroApoderado() {
     } finally { setEnviando(false) }
   }
 
-  // ── Paso: email enviado ─────────────────────────────────────────────────────
+  // ── Paso: email enviado + onboarding ───────────────────────────────────────
   if (paso === 'verificar') return (
     <div style={s.fondo}>
       <div style={{ ...s.card, maxWidth: 460 }} role="main">
         <div style={s.logo}>{IC.busLarge}</div>
-        <h1 style={s.titulo}>Furcole</h1>
-        <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
+        <h1 style={s.titulo}>¡Cuenta creada!</h1>
+        <p style={{ ...s.subtitulo, marginBottom: 20 }}>Bienvenido/a, {form.nombre.split(' ')[0]}</p>
+
+        {/* Confirmación email */}
+        <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 12, padding: '12px 16px', marginBottom: 20, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }} aria-hidden="true">✉️</span>
           <p style={{ margin: 0, fontSize: 13, color: '#166534', lineHeight: 1.6 }}>
-            ✉️ Enviamos un link de confirmación a <strong>{form.email}</strong>.<br/>
-            Confírmalo para activar tu cuenta.
+            Enviamos un link de confirmación a <strong>{form.email}</strong>. Confírmalo para activar tu cuenta.
           </p>
         </div>
-        <p style={{ fontSize: 13, color: '#374151', marginBottom: 20 }}>
-          Mientras tanto, puedes explorar los transportistas disponibles y reservar un cupo. La solicitud se enviará cuando inicies sesión.
-        </p>
+
+        {/* Pasos siguientes */}
+        <p style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 10px' }}>Próximos pasos</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+          {[
+            { n: '1', icon: '🔍', titulo: 'Busca un transportista', desc: 'Explora los furgones disponibles y filtra por el colegio de tu hijo/a.' },
+            { n: '2', icon: '📋', titulo: 'Solicita un cupo', desc: 'Envía una solicitud al transportista que prefieras. Él te contactará.' },
+            { n: '3', icon: '✅', titulo: 'Confirma tu email', desc: 'Para que la solicitud quede registrada necesitas confirmar tu correo.' },
+          ].map(({ n, icon, titulo, desc }) => (
+            <div key={n} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: '#F8FAFC', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0F2044', color: '#F5C400', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{n}</div>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0F2044' }}>{icon} {titulo}</p>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
         <button
           style={s.btn}
           onClick={() => { cargarTransportistas(''); setPaso('buscar') }}
