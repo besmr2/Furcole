@@ -48,33 +48,6 @@ function Skeleton({ w = '100%', h = 18, r = 6 }) {
   )
 }
 
-// Botón "← Volver" para pantallas de auth (login, registro, recuperar)
-function BtnVolver({ destino = '/' }) {
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        if (window.history.length > 1) window.history.back()
-        else window.location.href = destino
-      }}
-      style={{
-        position: 'absolute', top: 16, left: 16,
-        display: 'flex', alignItems: 'center', gap: 6,
-        background: 'none', border: 'none', cursor: 'pointer',
-        color: '#64748b', fontSize: 13, fontWeight: 600, padding: '4px 6px',
-        borderRadius: 6, lineHeight: 1,
-      }}
-      aria-label="Volver"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="15 18 9 12 15 6" />
-      </svg>
-      Volver
-    </button>
-  )
-}
-
 // ─── T8: Log automático de historial_cambios ─────────────────────────────────
 // Función utilitaria reutilizable en toda la app.
 // Llámala después de cualquier mutación importante sin await si no necesitas
@@ -3367,8 +3340,7 @@ function Login({ vistaInicial = 'login' }) {
 
   return (
     <div style={s.fondo}>
-      <div style={{ ...s.card, position: 'relative' }} role="main">
-        <BtnVolver />
+      <div style={s.card} role="main">
         <div style={s.logo} aria-hidden="true">{IC.busLarge}</div>
         <h1 style={s.titulo}>Furcole</h1>
         <p style={s.subtitulo}>Gestión de transporte escolar</p>
@@ -3436,7 +3408,42 @@ function Login({ vistaInicial = 'login' }) {
             >
               ¿Olvidaste tu contraseña?
             </button>
-            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 16 }}>
+            {/* Divisor */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0 4px' }}>
+              <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+              <span style={{ fontSize: 12, color: '#94a3b8', flexShrink: 0 }}>o continúa con</span>
+              <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+            </div>
+
+            {/* Botón Google */}
+            <button
+              type="button"
+              onClick={async () => {
+                const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+                  provider: 'google',
+                  options: { redirectTo: window.location.origin + '/portal' },
+                })
+                if (oauthErr) alert('No se pudo iniciar con Google: ' + oauthErr.message)
+              }}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                padding: '10px 16px', borderRadius: 8, border: '1.5px solid #e2e8f0',
+                background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#0F2044',
+                boxShadow: '0 1px 3px rgba(0,0,0,.06)', marginBottom: 4,
+              }}
+            >
+              {/* Google logo SVG */}
+              <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                <path fill="none" d="M0 0h48v48H0z"/>
+              </svg>
+              Continuar con Google
+            </button>
+
+            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 12, paddingTop: 16 }}>
               <span style={{ fontSize: 13, color: '#64748b' }}>¿No tienes cuenta? </span>
               <button type="button"
                 style={{ background: 'none', border: 'none', color: '#0F2044', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
@@ -3494,7 +3501,7 @@ function Login({ vistaInicial = 'login' }) {
 
 // ─── Registro Apoderado (libre, sin alumnoKey) ───────────────────────────────
 // Flujo: datos → verificar_email → buscar_transportista → solicitud_enviada
-function RegistroApoderado() {
+function RegistroApoderado({ tokenInvitacion = null }) {
   const [paso, setPaso]         = useState('datos')
   const [form, setForm]         = useState({ nombre: '', email: '', password: '', confirmar: '' })
   const [uid, setUid]           = useState(null)   // eslint-disable-line no-unused-vars
@@ -3595,6 +3602,29 @@ function RegistroApoderado() {
         await supabase.from('apoderado_perfil').upsert({
           user_id: newUid, nombre, email,
         }, { onConflict: 'user_id' })
+
+        // Si llegamos desde un link de invitación, auto-crear solicitud de cupo
+        if (tokenInvitacion) {
+          try {
+            // Buscar el alumno por su token de invitación
+            const { data: alumno } = await supabase
+              .from('alumnos')
+              .select('user_id')
+              .eq('alumno_key', tokenInvitacion)
+              .maybeSingle()
+            if (alumno?.user_id) {
+              await supabase.from('solicitudes_cupo').insert({
+                apoderado_user_id: newUid,
+                transportista_user_id: alumno.user_id,
+                modalidad: 'completo',
+                nota_apoderado: 'Solicitud generada automáticamente al registrarse vía link de invitación.',
+                estado: 'pendiente',
+              })
+            }
+          } catch (_) {
+            // No bloquear el registro si falla la solicitud automática
+          }
+        }
       }
       setPaso('verificar')
     } catch(err) {
@@ -3857,8 +3887,7 @@ function RegistroApoderado() {
 
   return (
     <div style={s.fondo}>
-      <div style={{ ...s.card, position: 'relative' }} role="main">
-        <BtnVolver />
+      <div style={s.card} role="main">
         <div style={s.logo} aria-hidden="true">{IC.busLarge}</div>
         <h1 style={s.titulo}>Furcole</h1>
         <p style={s.subtitulo}>Crear cuenta — Apoderado</p>
@@ -3907,6 +3936,40 @@ function RegistroApoderado() {
           {error && <p style={s.errorMsg} role="alert">{error}</p>}
           <button style={s.btn} type="submit" disabled={enviando}>
             {enviando ? 'Creando cuenta…' : 'Crear cuenta'}
+          </button>
+
+          {/* Divisor */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0 4px' }}>
+            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+            <span style={{ fontSize: 12, color: '#94a3b8', flexShrink: 0 }}>o regístrate con</span>
+            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+          </div>
+
+          {/* Botón Google */}
+          <button
+            type="button"
+            onClick={async () => {
+              const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo: window.location.origin + '/portal' },
+              })
+              if (oauthErr) alert('No se pudo iniciar con Google: ' + oauthErr.message)
+            }}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              padding: '10px 16px', borderRadius: 8, border: '1.5px solid #e2e8f0',
+              background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#0F2044',
+              boxShadow: '0 1px 3px rgba(0,0,0,.06)',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              <path fill="none" d="M0 0h48v48H0z"/>
+            </svg>
+            Continuar con Google
           </button>
         </form>
         <button type="button"
@@ -4168,8 +4231,7 @@ function RegistroTransportista() {
   // ── Pantalla inicial: ingresar patente ─────────────────
   return (
     <div style={s.fondo}>
-      <div style={{ ...s.card, position: 'relative' }} role="main">
-        <BtnVolver />
+      <div style={s.card} role="main">
         <div style={s.logo} aria-hidden="true">{IC.busLarge}</div>
         <h1 style={s.titulo}>Furcole</h1>
         <p style={s.subtitulo}>Registro de transportista</p>
@@ -4235,8 +4297,7 @@ function ActualizarPassword() {
 
   return (
     <div style={s.fondo}>
-      <div style={{ ...s.card, position: 'relative' }} role="main">
-        <BtnVolver />
+      <div style={s.card} role="main">
         <div style={s.logo} aria-hidden="true">{IC.lock}</div>
         <h1 style={{ ...s.titulo, fontSize: 22 }}>Nueva contraseña</h1>
         <p style={s.subtitulo}>Elige una contraseña segura</p>
@@ -4351,7 +4412,10 @@ export default function App() {
   if (ruta.startsWith('/registro/')) return <PaginaRegistroToken token={ruta.split('/')[2]} />
 
   // Rutas públicas: registro
-  if (ruta.startsWith('/registro-apoderado')) return <RegistroApoderado />
+  if (ruta.startsWith('/registro-apoderado')) {
+    const tokenInv = new URLSearchParams(window.location.search).get('token')
+    return <RegistroApoderado tokenInvitacion={tokenInv} />
+  }
   if (ruta.startsWith('/registro-transportista')) return <RegistroTransportista />
 
   // Ruta pública: actualizar contraseña (directo o via token recovery en URL)
@@ -4550,7 +4614,7 @@ function PaginaRegistroToken({ token }) {
             Regístrate como apoderado para enviar una solicitud de cupo.
           </p>
           <a
-            href={`/registro-apoderado`}
+            href={`/registro-apoderado?token=${token}`}
             style={{
               display: 'inline-block', padding: '13px 28px', borderRadius: 8,
               background: '#F5C400', color: '#0F2044', fontWeight: 700, fontSize: 15,
