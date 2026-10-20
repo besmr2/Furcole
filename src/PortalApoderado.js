@@ -572,6 +572,7 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
               }
             </div>
           </div>
+          </>
         )}
 
         {/* ── Deudas anteriores ── */}
@@ -607,7 +608,6 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
               }
             </div>
           </div>
-          </>
         )}
 
         {/* ── Historial ── */}
