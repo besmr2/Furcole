@@ -48,6 +48,118 @@ function Skeleton({ w = '100%', h = 18, r = 6 }) {
   )
 }
 
+// ─── T8: Log automático de historial_cambios ─────────────────────────────────
+// Función utilitaria reutilizable en toda la app.
+// Llámala después de cualquier mutación importante sin await si no necesitas
+// el resultado (fire-and-forget), o con await si debes serializar.
+async function logCambio({ entidad, entidad_id, campo, valor_anterior = null, valor_nuevo, realizado_por }) {
+  try {
+    await supabase.from('historial_cambios').insert({
+      entidad,
+      entidad_id,
+      campo,
+      valor_anterior: valor_anterior !== null ? JSON.stringify(valor_anterior) : null,
+      valor_nuevo:    JSON.stringify(valor_nuevo),
+      realizado_por,
+    })
+  } catch (_) {
+    // historial es best-effort: nunca interrumpir el flujo principal
+  }
+}
+
+// ─── T4 / T5: Componente reutilizable HistorialCambios ───────────────────────
+// Se usa en Perfil del transportista (T4) y en PortalApoderado (T5).
+// entidad: string — filtra historial_cambios.entidad
+// entidad_id: string | null — null = todos los del user_id propietario
+// propietario_id: string — user_id del que realizó los cambios (columna realizado_por)
+export function HistorialCambios({ propietario_id, entidad, entidad_id = null }) {
+  const [historial, setHistorial] = useState([])
+  const [cargando, setCargando]   = useState(true)
+
+  useEffect(() => {
+    async function cargar() {
+      setCargando(true)
+      let q = supabase
+        .from('historial_cambios')
+        .select('id, entidad, entidad_id, campo, valor_anterior, valor_nuevo, created_at')
+        .eq('realizado_por', propietario_id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (entidad)    q = q.eq('entidad', entidad)
+      if (entidad_id) q = q.eq('entidad_id', entidad_id)
+      const { data } = await q
+      setHistorial(data || [])
+      setCargando(false)
+    }
+    if (propietario_id) cargar()
+  }, [propietario_id, entidad, entidad_id])
+
+  const labelCampo = {
+    registro: 'Registro inicial',
+    colegio_id: 'Cambio de establecimiento',
+    nombre: 'Nombre actualizado',
+    telefono: 'Teléfono actualizado',
+    visible: 'Visibilidad marketplace',
+    precios_publicos: 'Precios públicos',
+    solicitud_enviada: 'Solicitud de cupo enviada',
+    solicitud_aceptada: 'Solicitud aceptada',
+    solicitud_rechazada: 'Solicitud rechazada',
+    creacion: 'Creación de registro',
+  }
+
+  function parsearValor(v) {
+    if (v === null || v === undefined) return '—'
+    try {
+      const parsed = JSON.parse(v)
+      if (typeof parsed === 'object') return Object.entries(parsed).map(([k, val]) => `${k}: ${val}`).join(', ')
+      return String(parsed)
+    } catch { return String(v) }
+  }
+
+  if (cargando) return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} aria-busy="true">
+      {[1,2,3].map(i => <Skeleton key={i} w="100%" h={44} r={8} />)}
+    </div>
+  )
+
+  if (historial.length === 0) return (
+    <div style={{ textAlign: 'center', padding: '28px 0', color: '#94a3b8', fontSize: 13 }}>
+      Aún no hay registros de actividad.
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {historial.map(h => (
+        <div key={h.id} style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#0F2044' }}>
+              {labelCampo[h.campo] || h.campo}
+            </span>
+            <span style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>
+              {new Date(h.created_at).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}
+            </span>
+          </div>
+          {(h.valor_anterior !== null || h.valor_nuevo !== null) && (
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {h.valor_anterior !== null && (
+                <span style={{ background: '#fee2e2', color: '#dc2626', borderRadius: 4, padding: '1px 6px' }}>
+                  Antes: {parsearValor(h.valor_anterior)}
+                </span>
+              )}
+              {h.valor_nuevo !== null && (
+                <span style={{ background: '#dcfce7', color: '#16a34a', borderRadius: 4, padding: '1px 6px' }}>
+                  Ahora: {parsearValor(h.valor_nuevo)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Apoderados ───────────────────────────────────────────────────────────────
 function Apoderados() {
   const [lista, setLista]         = useState([])
@@ -164,26 +276,29 @@ function Apoderados() {
 function Alumnos() {
   const [lista, setLista]           = useState([])
   const [apoderados, setApoderados] = useState([])
+  const [colegios, setColegios]     = useState([])   // T6: catálogo de colegios
   const [cargando, setCargando]     = useState(true)
   const [modal, setModal]           = useState(false)
-  const [form, setForm]             = useState({ nombre: '', apoderado_id: '', monto: '', activo: true })
+  const [form, setForm]             = useState({ nombre: '', apoderado_id: '', colegio_id: '', monto: '', activo: true })
   const [guardando, setGuardando]   = useState(false)
   const [error, setError]           = useState('')
 
   const cargar = useCallback(async () => {
     setCargando(true)
-    const [{ data: alumnos }, { data: apods }] = await Promise.all([
-      supabase.from('alumnos').select('*, apoderados(nombre)').order('nombre'),
+    const [{ data: alumnos }, { data: apods }, { data: cols }] = await Promise.all([
+      supabase.from('alumnos').select('*, apoderados(nombre), colegios(nombre)').order('nombre'),
       supabase.from('apoderados').select('id, nombre').order('nombre'),
+      supabase.from('colegios').select('id, nombre').eq('activo', true).order('nombre'),
     ])
     setLista(alumnos || [])
     setApoderados(apods || [])
+    setColegios(cols || [])
     setCargando(false)
   }, [])
   useEffect(() => { cargar() }, [cargar])
 
-  const abrirNuevo  = () => { setForm({ nombre: '', apoderado_id: apoderados[0]?.id || '', monto: '', activo: true }); setError(''); setModal('nuevo') }
-  const abrirEditar = (al) => { setForm({ nombre: al.nombre, apoderado_id: al.apoderado_id, monto: String(al.monto), activo: al.activo }); setError(''); setModal(al) }
+  const abrirNuevo  = () => { setForm({ nombre: '', apoderado_id: apoderados[0]?.id || '', colegio_id: '', monto: '', activo: true }); setError(''); setModal('nuevo') }
+  const abrirEditar = (al) => { setForm({ nombre: al.nombre, apoderado_id: al.apoderado_id, colegio_id: al.colegio_id || '', monto: String(al.monto), activo: al.activo }); setError(''); setModal(al) }
   const cerrar      = () => { setModal(false); setError('') }
 
   const guardar = async (e) => {
@@ -194,14 +309,21 @@ function Alumnos() {
     if (!form.apoderado_id)        { setError('Selecciona un apoderado'); return }
     if (isNaN(monto) || monto < 0) { setError('Ingresa un monto válido'); return }
     setGuardando(true); setError('')
-    const payload = { nombre, apoderado_id: form.apoderado_id, monto, activo: form.activo }
+    const payload = { nombre, apoderado_id: form.apoderado_id, colegio_id: form.colegio_id || null, monto, activo: form.activo }
+    const { data: { user } } = await supabase.auth.getUser()
     if (modal === 'nuevo') {
-      const { data: { user } } = await supabase.auth.getUser()
       const { error: err } = await supabase.from('alumnos').insert({ ...payload, user_id: user.id })
       if (err) { setError('Error al guardar'); setGuardando(false); return }
+      // T8: log creación alumno
+      logCambio({ entidad: 'alumno', entidad_id: user.id, campo: 'creacion', valor_nuevo: { nombre, colegio_id: payload.colegio_id }, realizado_por: user.id })
     } else {
+      const colegioAnterior = modal.colegio_id
       const { error: err } = await supabase.from('alumnos').update(payload).eq('id', modal.id)
       if (err) { setError('Error al actualizar'); setGuardando(false); return }
+      // T8: log cambio de establecimiento si cambió
+      if (colegioAnterior !== payload.colegio_id) {
+        logCambio({ entidad: 'alumno', entidad_id: modal.id, campo: 'colegio_id', valor_anterior: colegioAnterior, valor_nuevo: payload.colegio_id, realizado_por: user.id })
+      }
     }
     setGuardando(false); cerrar(); cargar()
   }
@@ -256,17 +378,19 @@ function Alumnos() {
         </div>
       ) : (
         <div style={s.tabla} role="table" aria-label="Lista de alumnos">
-          <div style={{ ...s.tablaHead, gridTemplateColumns: '1fr 1fr 100px 90px 110px' }} role="row">
+          <div style={{ ...s.tablaHead, gridTemplateColumns: '1fr 1fr 1fr 100px 90px 110px' }} role="row">
             <span role="columnheader">Nombre</span>
             <span role="columnheader">Apoderado</span>
+            <span role="columnheader">Establecimiento</span>
             <span role="columnheader">Monto</span>
             <span role="columnheader">Estado</span>
             <span role="columnheader" aria-label="Acciones" />
           </div>
           {lista.map(al => (
-            <div key={al.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 100px 90px 110px', opacity: al.activo ? 1 : 0.55 }} role="row">
+            <div key={al.id} className="fila" style={{ ...s.tablaFila, gridTemplateColumns: '1fr 1fr 1fr 100px 90px 110px', opacity: al.activo ? 1 : 0.55 }} role="row">
               <span style={s.celNombre} role="cell">{al.nombre}</span>
               <span style={s.cel} role="cell">{al.apoderados?.nombre || '—'}</span>
+              <span style={s.cel} role="cell">{al.colegios?.nombre || <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontSize: 12 }}>Sin asignar</span>}</span>
               <span style={s.cel} role="cell">${Number(al.monto).toLocaleString('es-CL')}</span>
               <span role="cell">
                 <button
@@ -283,6 +407,7 @@ function Alumnos() {
                 <button className="btn-icon" style={s.btnIcono} onClick={() => abrirEditar(al)} aria-label={`Editar ${al.nombre}`}>{IC.edit}</button>
                 <button className="btn-icon" style={{ ...s.btnIcono, color: '#C0202F' }} onClick={() => eliminar(al.id)} aria-label={`Eliminar ${al.nombre}`}>{IC.trash}</button>
               </span>
+
             </div>
           ))}
         </div>
@@ -299,6 +424,12 @@ function Alumnos() {
               <select id="al-apoderado" style={s.input} value={form.apoderado_id} onChange={e => setForm(f => ({ ...f, apoderado_id: e.target.value }))} required>
                 <option value="">Seleccionar apoderado…</option>
                 {apoderados.map(ap => <option key={ap.id} value={ap.id}>{ap.nombre}</option>)}
+              </select>
+              {/* T6: Campo establecimiento / colegio */}
+              <label style={s.label} htmlFor="al-colegio">Establecimiento</label>
+              <select id="al-colegio" style={s.input} value={form.colegio_id} onChange={e => setForm(f => ({ ...f, colegio_id: e.target.value }))}>
+                <option value="">Sin asignar</option>
+                {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
               <label style={s.label} htmlFor="al-monto">Monto mensual (CLP) <span aria-hidden="true" style={{ color: '#dc2626' }}>*</span></label>
               <input id="al-monto" style={s.input} type="number" placeholder="50000" min="0" step="1000" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} required />
@@ -2926,6 +3057,42 @@ function Perfil() {
         </div>
 
       </>)}
+
+      {/* T4: Historial de cambios del perfil ── */}
+      <HistorialCambiosPerfil userId={perfil?.user_id} />
+
+    </div>
+  )
+}
+
+// T4: wrapper que carga user_id y renderiza HistorialCambios en Perfil
+function HistorialCambiosPerfil({ userId }) {
+  const [uid, setUid] = useState(userId || null)
+  const [expandido, setExpandido] = useState(false)
+
+  useEffect(() => {
+    if (!uid) {
+      supabase.auth.getUser().then(({ data: { user } }) => setUid(user?.id || null))
+    }
+  }, [uid])
+
+  if (!uid) return null
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', marginTop: 4 }}>
+      <button
+        onClick={() => setExpandido(v => !v)}
+        aria-expanded={expandido}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
+        <span style={{ fontWeight: 700, fontSize: 15, color: '#0F2044' }}>Historial de cambios</span>
+        <span style={{ fontSize: 12, color: '#64748b', transform: expandido ? 'rotate(180deg)' : 'none', transition: 'transform .2s', display: 'inline-block' }}>▼</span>
+      </button>
+      {expandido && (
+        <div style={{ marginTop: 16 }}>
+          <HistorialCambios propietario_id={uid} entidad={null} entidad_id={null} />
+        </div>
+      )}
     </div>
   )
 }
@@ -3295,16 +3462,83 @@ function Login({ vistaInicial = 'login' }) {
 }
 
 // ─── Registro Apoderado (libre, sin alumnoKey) ───────────────────────────────
+// Flujo: datos → verificar_email → buscar_transportista → solicitud_enviada
 function RegistroApoderado() {
-  const [paso, setPaso]       = useState('datos') // 'datos' | 'verificar'
-  const [form, setForm]       = useState({ nombre: '', email: '', password: '', confirmar: '' })
-  const [error, setError]     = useState('')
+  const [paso, setPaso]         = useState('datos')
+  const [form, setForm]         = useState({ nombre: '', email: '', password: '', confirmar: '' })
+  const [uid, setUid]           = useState(null)   // user_id post-registro
+  const [error, setError]       = useState('')
   const [enviando, setEnviando] = useState(false)
   const [mostrarPass, setMostrarPass] = useState(false)
+
+  // Estado del buscador de transportistas
+  const [transportistas, setTransportistas] = useState([])
+  const [cargandoT, setCargandoT]           = useState(false)
+  const [filtroColegio, setFiltroColegio]   = useState('')
+  const [colegiosDisp, setColegiosDisp]     = useState([])
+  const [solicitudEnviada, setSolicitudEnviada] = useState(null) // { transportistaNombre }
+  const [enviandoSol, setEnviandoSol]       = useState(false)
+  const [errorSol, setErrorSol]             = useState('')
+  // Formulario de solicitud
+  const [solAbierta, setSolAbierta]         = useState(null)  // transportista_user_id
+  const [modalidad, setModalidad]           = useState('completo')
+  const [notaAp, setNotaAp]                 = useState('')
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const sanitizar = str => str.trim().slice(0, 254)
 
+  // ── Cargar transportistas visibles ─────────────────────────────────────────
+  async function cargarTransportistas(colegio) {
+    setCargandoT(true)
+    setErrorSol('')
+    let q = supabase
+      .from('transportista_perfil')
+      .select('user_id, nombre, telefono, foto_url, precio_mensual, precios_publicos, colegios, capacidad, modalidades')
+      .eq('visible', true)
+    if (colegio) {
+      q = q.contains('colegios', [colegio])
+    }
+    const { data } = await q.order('nombre')
+    setTransportistas(data || [])
+
+    // Obtener lista de colegios únicos para el filtro
+    if (!colegio) {
+      const todos = (data || []).flatMap(t => t.colegios || [])
+      setColegiosDisp([...new Set(todos)].sort())
+    }
+    setCargandoT(false)
+  }
+
+  // ── Enviar solicitud de cupo ────────────────────────────────────────────────
+  async function enviarSolicitud(transportistaId, transportistaNombre) {
+    setEnviandoSol(true); setErrorSol('')
+    // Para enviar solicitud necesitamos sesión — el apoderado debe iniciar sesión primero
+    // si no confirmó el email, guardamos la intención en localStorage
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setErrorSol('Debes confirmar tu email e iniciar sesión antes de enviar una solicitud.')
+      setEnviandoSol(false)
+      return
+    }
+    const { error } = await supabase.from('solicitudes_cupo').insert({
+      apoderado_user_id:     user.id,
+      transportista_user_id: transportistaId,
+      modalidad,
+      nota_apoderado:        notaAp.trim() || null,
+      estado:                'pendiente',
+    })
+    if (error) {
+      setErrorSol(error.code === '23505'
+        ? 'Ya tienes una solicitud pendiente con este transportista.'
+        : 'Error al enviar la solicitud. Intenta nuevamente.')
+    } else {
+      setSolicitudEnviada({ transportistaNombre })
+      setSolAbierta(null)
+    }
+    setEnviandoSol(false)
+  }
+
+  // ── Registrarse ────────────────────────────────────────────────────────────
   async function registrar(e) {
     e.preventDefault()
     setError('')
@@ -3323,10 +3557,11 @@ function RegistroApoderado() {
         options: { data: { nombre, rol: 'apoderado' } }
       })
       if (authErr) throw authErr
-      const uid = data?.user?.id
-      if (uid) {
+      const newUid = data?.user?.id
+      if (newUid) {
+        setUid(newUid)
         await supabase.from('apoderado_perfil').upsert({
-          user_id: uid, nombre, email,
+          user_id: newUid, nombre, email,
         }, { onConflict: 'user_id' })
       }
       setPaso('verificar')
@@ -3335,17 +3570,236 @@ function RegistroApoderado() {
     } finally { setEnviando(false) }
   }
 
+  // ── Paso: email enviado ─────────────────────────────────────────────────────
   if (paso === 'verificar') return (
     <div style={s.fondo}>
-      <div style={s.card} role="main">
+      <div style={{ ...s.card, maxWidth: 460 }} role="main">
         <div style={s.logo}>{IC.busLarge}</div>
         <h1 style={s.titulo}>Furcole</h1>
-        <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 24px' }}>Revisa tu email</p>
-        <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 20 }}>
-          Enviamos un link de confirmación a <strong>{form.email}</strong>.<br/>
-          Confírmalo y luego inicia sesión.
+        <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
+          <p style={{ margin: 0, fontSize: 13, color: '#166534', lineHeight: 1.6 }}>
+            ✉️ Enviamos un link de confirmación a <strong>{form.email}</strong>.<br/>
+            Confírmalo para activar tu cuenta.
+          </p>
+        </div>
+        <p style={{ fontSize: 13, color: '#374151', marginBottom: 20 }}>
+          Mientras tanto, puedes explorar los transportistas disponibles y reservar un cupo. La solicitud se enviará cuando inicies sesión.
         </p>
-        <button style={s.btn} onClick={() => window.location.href = '/portal'}>Ir al portal</button>
+        <button
+          style={s.btn}
+          onClick={() => { cargarTransportistas(''); setPaso('buscar') }}
+        >
+          Buscar transportista →
+        </button>
+        <button type="button"
+          style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', marginTop: 12, textDecoration: 'underline', display: 'block', margin: '12px auto 0' }}
+          onClick={() => window.location.href = '/portal'}>
+          Ir al portal de apoderado
+        </button>
+      </div>
+    </div>
+  )
+
+  // ── Paso: solicitud enviada ─────────────────────────────────────────────────
+  if (paso === 'buscar' && solicitudEnviada) return (
+    <div style={s.fondo}>
+      <div style={{ ...s.card, maxWidth: 460 }} role="main">
+        <div style={{ fontSize: 48, textAlign: 'center', marginBottom: 12 }} aria-hidden="true">🎉</div>
+        <h1 style={{ ...s.titulo, marginBottom: 8 }}>¡Solicitud enviada!</h1>
+        <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 20, textAlign: 'center' }}>
+          Tu solicitud a <strong>{solicitudEnviada.transportistaNombre}</strong> fue enviada.<br/>
+          El transportista la revisará y te contactará.
+        </p>
+        <button style={s.btn} onClick={() => setSolicitudEnviada(null)}>
+          Buscar otro transportista
+        </button>
+        <button type="button"
+          style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', marginTop: 12, textDecoration: 'underline', display: 'block', margin: '12px auto 0' }}
+          onClick={() => window.location.href = '/portal'}>
+          Ir al portal
+        </button>
+      </div>
+    </div>
+  )
+
+  // ── Paso: buscador de transportistas ───────────────────────────────────────
+  if (paso === 'buscar') return (
+    <div style={{ minHeight: '100vh', background: '#F8FAFC', padding: '24px 16px 48px' }}>
+      {/* Header */}
+      <div style={{ maxWidth: 680, margin: '0 auto 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div style={{ background: '#F5C400', borderRadius: 10, padding: 8, display: 'inline-flex' }} aria-hidden="true">{IC.bus}</div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0F2044', fontFamily: "'Sora',system-ui,sans-serif" }}>
+              Buscar transportista
+            </h1>
+            <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+              Encuentra un furgón escolar para tu hijo/a
+            </p>
+          </div>
+        </div>
+
+        {/* Filtro por colegio */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginTop: 16 }}>
+          <label htmlFor="filtro-colegio" style={{ fontSize: 13, fontWeight: 600, color: '#374151', flexShrink: 0 }}>
+            Filtrar por colegio:
+          </label>
+          <select
+            id="filtro-colegio"
+            value={filtroColegio}
+            onChange={e => { setFiltroColegio(e.target.value); cargarTransportistas(e.target.value) }}
+            style={{ flex: 1, minWidth: 160, padding: '8px 12px', borderRadius: 8, border: '1.5px solid #CBD5E1', fontSize: 13, background: '#fff', color: '#0F2044' }}
+            aria-label="Filtrar transportistas por colegio"
+          >
+            <option value="">Todos los colegios</option>
+            {colegiosDisp.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <span style={{ fontSize: 12, color: '#94A3B8' }}>
+            {cargandoT ? 'Buscando…' : `${transportistas.length} disponible${transportistas.length !== 1 ? 's' : ''}`}
+          </span>
+        </div>
+      </div>
+
+      {/* Lista */}
+      <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {cargandoT ? (
+          [1,2,3].map(i => <div key={i}><Skeleton h={120} r={14} /></div>)
+        ) : transportistas.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 16px', color: '#64748b' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }} aria-hidden="true">🚌</div>
+            <p style={{ fontSize: 14, margin: 0 }}>No hay transportistas disponibles{filtroColegio ? ` para ${filtroColegio}` : ''}.</p>
+            {filtroColegio && (
+              <button
+                style={{ background: 'none', border: 'none', color: '#0F2044', fontSize: 13, cursor: 'pointer', marginTop: 8, textDecoration: 'underline' }}
+                onClick={() => { setFiltroColegio(''); cargarTransportistas('') }}>
+                Ver todos
+              </button>
+            )}
+          </div>
+        ) : transportistas.map(t => {
+          const estaAbierta = solAbierta === t.user_id
+          const precioRef = t.precios_publicos && t.precio_mensual
+          return (
+            <div key={t.user_id} style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 6px rgba(0,0,0,.08)', border: '1.5px solid #E2E8F0' }}>
+              {/* Cabecera tarjeta */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: estaAbierta ? 16 : 0 }}>
+                {/* Avatar */}
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#EBF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                  {t.foto_url
+                    ? <img src={t.foto_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: 20 }} aria-hidden="true">🚐</span>
+                  }
+                </div>
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#0F2044' }}>{t.nombre || 'Transportista'}</p>
+                  {precioRef && (
+                    <p style={{ margin: '3px 0 0', fontSize: 13, color: '#059669', fontWeight: 600 }}>
+                      ${Number(t.precio_mensual).toLocaleString('es-CL')} / mes
+                    </p>
+                  )}
+                  {(t.colegios || []).length > 0 && (
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>
+                      {(t.colegios || []).slice(0, 3).join(' · ')}{(t.colegios || []).length > 3 ? ' …' : ''}
+                    </p>
+                  )}
+                </div>
+                {/* Botón solicitar */}
+                {!estaAbierta && (
+                  <button
+                    onClick={() => { setSolAbierta(t.user_id); setModalidad('completo'); setNotaAp('') }}
+                    style={{ background: '#0F2044', color: '#F5C400', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+                    aria-expanded="false"
+                    aria-controls={`sol-form-${t.user_id}`}
+                  >
+                    Solicitar cupo
+                  </button>
+                )}
+              </div>
+
+              {/* Formulario de solicitud (expandible) */}
+              {estaAbierta && (
+                <div id={`sol-form-${t.user_id}`} role="region" aria-label={`Solicitud a ${t.nombre}`}>
+                  <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 16 }}>
+                    <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: '#0F2044' }}>
+                      Solicitar cupo a {t.nombre}
+                    </p>
+
+                    {/* Modalidad */}
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+                      Modalidad
+                    </label>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }} role="group" aria-label="Selecciona modalidad">
+                      {[['completo','Completo (ida y vuelta)'],['manana','Solo mañana'],['tarde','Solo tarde']].map(([v, label]) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setModalidad(v)}
+                          style={{
+                            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            border: `1.5px solid ${modalidad === v ? '#0F2044' : '#CBD5E1'}`,
+                            background: modalidad === v ? '#0F2044' : '#fff',
+                            color: modalidad === v ? '#F5C400' : '#374151',
+                          }}
+                          aria-pressed={modalidad === v}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Nota opcional */}
+                    <label htmlFor={`nota-${t.user_id}`} style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+                      Mensaje al transportista <span style={{ fontWeight: 400, color: '#94A3B8' }}>(opcional)</span>
+                    </label>
+                    <textarea
+                      id={`nota-${t.user_id}`}
+                      value={notaAp}
+                      onChange={e => setNotaAp(e.target.value.slice(0, 300))}
+                      placeholder="Ej: Mi hijo va al colegio X en calle Y. ¿Tiene disponibilidad?"
+                      maxLength={300}
+                      rows={3}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #CBD5E1', fontSize: 13, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                    />
+                    <p style={{ textAlign: 'right', fontSize: 11, color: '#94A3B8', margin: '2px 0 12px' }}>{notaAp.length}/300</p>
+
+                    {errorSol && <p style={{ fontSize: 13, color: '#DC2626', margin: '0 0 12px' }} role="alert">{errorSol}</p>}
+
+                    {/* Acciones */}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button
+                        onClick={() => enviarSolicitud(t.user_id, t.nombre)}
+                        disabled={enviandoSol}
+                        style={{ flex: 1, background: '#F5C400', color: '#0F2044', border: 'none', borderRadius: 10, padding: '10px 0', fontWeight: 700, fontSize: 14, cursor: enviandoSol ? 'wait' : 'pointer' }}
+                        aria-busy={enviandoSol}
+                      >
+                        {enviandoSol ? 'Enviando…' : 'Enviar solicitud'}
+                      </button>
+                      <button
+                        onClick={() => setSolAbierta(null)}
+                        style={{ background: '#F1F5F9', color: '#374151', border: 'none', borderRadius: 10, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}
+                        aria-label="Cancelar solicitud"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Footer con link al portal */}
+      <div style={{ maxWidth: 680, margin: '32px auto 0', textAlign: 'center' }}>
+        <button
+          type="button"
+          style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+          onClick={() => window.location.href = '/portal'}
+        >
+          Ir al portal de apoderado
+        </button>
       </div>
     </div>
   )
@@ -3810,6 +4264,9 @@ export default function App() {
   // Ruta pública: portal apoderado
   if (ruta.startsWith('/portal')) return <PortalApoderado />
 
+  // T3: Ruta pública de invitación: /registro/{token}
+  if (ruta.startsWith('/registro/')) return <PaginaRegistroToken token={ruta.split('/')[2]} />
+
   // Rutas públicas: registro
   if (ruta.startsWith('/registro-apoderado')) return <RegistroApoderado />
   if (ruta.startsWith('/registro-transportista')) return <RegistroTransportista />
@@ -3819,6 +4276,386 @@ export default function App() {
 
   if (!sesion) return <Login />
   return <Dashboard sesion={sesion} onLogout={handleLogout} />
+}
+
+// ─── T3: Página pública de invitación de transportista ───────────────────────
+// URL: /registro/{token}  — el token es el alumno_key del alumno
+// El transportista comparte este link/QR con potenciales apoderados.
+// Muestra: nombre del transportista, colegios atendidos, precios (si públicos),
+// rutas, y CTA para registrarse como apoderado.
+function PaginaRegistroToken({ token }) {
+  const FASE_T = { CARGANDO: 'cargando', OK: 'ok', ERROR: 'error' }
+  const [fase, setFase]           = useState(FASE_T.CARGANDO)
+  const [datos, setDatos]         = useState(null) // { transportista, colegios, precios, rutas }
+
+  useEffect(() => {
+    async function cargar() {
+      if (!token) { setFase(FASE_T.ERROR); return }
+      try {
+        // 1. Buscar alumno por alumno_key para obtener el user_id del transportista
+        const { data: alumno, error: errA } = await supabase
+          .from('alumnos')
+          .select('id, user_id')
+          .eq('alumno_key', token)
+          .maybeSingle()
+
+        if (errA || !alumno) { setFase(FASE_T.ERROR); return }
+
+        const transportistaId = alumno.user_id
+
+        // 2. Cargar en paralelo: perfil_transportista + colegios activos + precios + rutas
+        const [
+          { data: tp },
+          { data: tColegios },
+          { data: precios },
+          { data: rutas },
+        ] = await Promise.all([
+          supabase.from('transportista_perfil')
+            .select('nombre, foto_url, descripcion, anos_experiencia, capacidad_total, precios_publicos, visible')
+            .eq('user_id', transportistaId)
+            .maybeSingle(),
+          supabase.from('transportista_colegios')
+            .select('colegios(nombre, sector)')
+            .eq('user_id', transportistaId)
+            .eq('activo', true),
+          supabase.from('precios_modalidad')
+            .select('modalidad, precio_mensual')
+            .eq('user_id', transportistaId)
+            .eq('activo', true),
+          supabase.from('rutas')
+            .select('id, nombre, descripcion')
+            .eq('user_id', transportistaId)
+            .eq('activo', true)
+            .limit(5),
+        ])
+
+        if (!tp) { setFase(FASE_T.ERROR); return }
+
+        const colegiosLista = (tColegios || []).map(tc => tc.colegios).filter(Boolean)
+        const labelModal = { completo: 'Servicio completo (ida y vuelta)', ida: 'Solo ida', vuelta: 'Solo vuelta' }
+
+        setDatos({
+          tp,
+          colegios:  colegiosLista,
+          precios:   (precios || []).map(p => ({ ...p, label: labelModal[p.modalidad] || p.modalidad })),
+          rutas:     rutas || [],
+          alumnoId:  alumno.id,
+          tpId:      transportistaId,
+        })
+        setFase(FASE_T.OK)
+      } catch(e) {
+        setFase(FASE_T.ERROR)
+      }
+    }
+    cargar()
+  }, [token]) // eslint-disable-line
+
+  const estiloFondo = {
+    minHeight: '100vh', background: '#F2F5FA', fontFamily: "'Inter',system-ui,sans-serif",
+    display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 16px 40px',
+  }
+
+  if (fase === FASE_T.CARGANDO) return (
+    <div style={estiloFondo} aria-busy="true">
+      <div style={{ width: '100%', maxWidth: 480, marginTop: 48, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Skeleton w="60%" h={28} r={8} />
+        <Skeleton w="100%" h={120} r={12} />
+        <Skeleton w="100%" h={80} r={12} />
+      </div>
+    </div>
+  )
+
+  if (fase === FASE_T.ERROR) return (
+    <div style={{ ...estiloFondo, justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center', maxWidth: 380, padding: '0 16px' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔗</div>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0F2044', margin: '0 0 8px' }}>Link no válido</h2>
+        <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.6 }}>
+          Este link de invitación no existe o ha expirado. Solicita uno nuevo al transportista.
+        </p>
+      </div>
+    </div>
+  )
+
+  const { tp, colegios, precios, rutas } = datos
+
+  return (
+    <div style={estiloFondo}>
+      {/* Header Furcole */}
+      <div style={{ width: '100%', maxWidth: 520, borderBottom: '1px solid #e2e8f0', paddingBottom: 16, marginBottom: 32, paddingTop: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 22 }}>🚌</span>
+        <span style={{ fontSize: 18, fontWeight: 700, color: '#0F2044', fontFamily: "'Sora',system-ui,sans-serif" }}>Furcole</span>
+      </div>
+
+      <div style={{ width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {/* Tarjeta principal del transportista */}
+        <div style={{ background: '#0F2044', borderRadius: 16, padding: 24, color: '#fff', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+          {tp.foto_url
+            ? <img src={tp.foto_url} alt={`Foto de ${tp.nombre}`} style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid #F5C400', flexShrink: 0 }} />
+            : <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#1A3A6B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>👤</div>
+          }
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#F5C400', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Transportista escolar</div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px', lineHeight: 1.2 }}>{tp.nombre || 'Transportista'}</h1>
+            {tp.descripcion && <p style={{ fontSize: 13, color: '#a8c0dd', margin: 0, lineHeight: 1.5 }}>{tp.descripcion}</p>}
+            <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+              {tp.anos_experiencia && (
+                <span style={{ fontSize: 12, background: '#1A3A6B', borderRadius: 6, padding: '3px 10px', color: '#cbd5e1' }}>
+                  {tp.anos_experiencia} años de experiencia
+                </span>
+              )}
+              {tp.capacidad_total && (
+                <span style={{ fontSize: 12, background: '#1A3A6B', borderRadius: 6, padding: '3px 10px', color: '#cbd5e1' }}>
+                  Capacidad: {tp.capacidad_total} alumnos
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Colegios atendidos */}
+        {colegios.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+            <p style={{ margin: '0 0 12px', fontWeight: 700, fontSize: 14, color: '#0F2044' }}>Colegios atendidos</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {colegios.map((c, i) => (
+                <span key={i} style={{ background: '#EFF6FF', color: '#1e40af', borderRadius: 6, padding: '4px 12px', fontSize: 13, fontWeight: 500, border: '1px solid #bfdbfe' }}>
+                  {c.nombre}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Precios (si son públicos) */}
+        {tp.precios_publicos && precios.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+            <p style={{ margin: '0 0 12px', fontWeight: 700, fontSize: 14, color: '#0F2044' }}>Tarifas mensuales</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {precios.map((p, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8FAFC', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 13, color: '#374151' }}>{p.label}</span>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: '#0F2044' }}>
+                    ${Number(p.precio_mensual).toLocaleString('es-CL')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Rutas disponibles */}
+        {rutas.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.07)' }}>
+            <p style={{ margin: '0 0 12px', fontWeight: 700, fontSize: 14, color: '#0F2044' }}>Rutas disponibles</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {rutas.map(r => (
+                <div key={r.id} style={{ padding: '10px 14px', background: '#F8FAFC', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: '#0F2044' }}>{r.nombre}</div>
+                  {r.descripcion && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{r.descripcion}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* CTA: registrarse */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: '20px 20px 24px', boxShadow: '0 1px 4px rgba(0,0,0,.07)', textAlign: 'center' }}>
+          <p style={{ margin: '0 0 16px', fontSize: 14, color: '#374151', lineHeight: 1.6 }}>
+            ¿Quieres unirte a la ruta de <strong>{tp.nombre}</strong>?<br />
+            Regístrate como apoderado para enviar una solicitud de cupo.
+          </p>
+          <a
+            href={`/registro-apoderado`}
+            style={{
+              display: 'inline-block', padding: '13px 28px', borderRadius: 8,
+              background: '#F5C400', color: '#0F2044', fontWeight: 700, fontSize: 15,
+              textDecoration: 'none', border: 'none', cursor: 'pointer',
+            }}
+          >
+            Registrarme como apoderado →
+          </a>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+// ─── T7: Flujo "cambiar establecimiento" desde el Portal Apoderado ────────────
+// Este componente es exportado para uso en PortalApoderado.js.
+// Permite al apoderado buscar transportistas de otro colegio y enviar una nueva solicitud de cupo.
+// Props: { alumnoId, alumnoNombre, userId, onCerrar }
+export function FlujoCambioEstablecimiento({ alumnoId, alumnoNombre, userId, onCerrar }) {
+  const FASE_CE = { BUSCAR: 'buscar', CONFIRMADO: 'confirmado' }
+  const [fase, setFase]                   = useState(FASE_CE.BUSCAR)
+  const [colegioFiltro, setColegioFiltro] = useState('')
+  const [colegios, setColegios]           = useState([])
+  const [transportistas, setTransportistas] = useState([])
+  const [cargando, setCargando]           = useState(false)
+  const [solAbierta, setSolAbierta]       = useState(null) // transportista_user_id
+  const [modalidad, setModalidad]         = useState('completo')
+  const [nota, setNota]                   = useState('')
+  const [enviando, setEnviando]           = useState(false)
+  const [error, setError]                 = useState('')
+  const [confirmado, setConfirmado]       = useState(null)
+
+  // Cargar colegios disponibles al montar
+  useEffect(() => {
+    supabase.from('colegios').select('id, nombre').eq('activo', true).order('nombre')
+      .then(({ data }) => setColegios(data || []))
+  }, [])
+
+  async function buscar() {
+    setCargando(true); setError(''); setTransportistas([])
+    let q = supabase.from('transportista_perfil')
+      .select('user_id, nombre, foto_url, descripcion, anos_experiencia, capacidad_total, precios_publicos')
+      .eq('visible', true)
+    if (colegioFiltro) {
+      // filtrar por colegio via transportista_colegios
+      const { data: tcs } = await supabase.from('transportista_colegios')
+        .select('user_id').eq('colegio_id', colegioFiltro).eq('activo', true)
+      const ids = (tcs || []).map(t => t.user_id)
+      if (ids.length === 0) { setTransportistas([]); setCargando(false); return }
+      q = q.in('user_id', ids)
+    }
+    const { data } = await q.limit(20)
+    setTransportistas(data || [])
+    setCargando(false)
+  }
+
+  async function enviarSolicitud(tpId, tpNombre) {
+    setEnviando(true); setError('')
+    try {
+      const { error: errSol } = await supabase.from('solicitudes_cupo').insert({
+        apoderado_user_id:    userId,
+        transportista_user_id: tpId,
+        alumno_id:            alumnoId,
+        modalidad,
+        nota_apoderado:       nota.trim() || null,
+        estado:               'pendiente',
+      })
+      if (errSol) {
+        if (errSol.code === '23505') { setError('Ya enviaste una solicitud a este transportista.'); setEnviando(false); return }
+        throw errSol
+      }
+      // T8: log cambio de establecimiento desde portal apoderado
+      logCambio({ entidad: 'alumno', entidad_id: alumnoId, campo: 'solicitud_enviada', valor_nuevo: { transportista_user_id: tpId, modalidad }, realizado_por: userId })
+      setConfirmado({ tpNombre })
+      setFase(FASE_CE.CONFIRMADO)
+    } catch(e) {
+      setError('Error al enviar solicitud. Inténtalo de nuevo.')
+    }
+    setEnviando(false)
+  }
+
+  if (fase === FASE_CE.CONFIRMADO) return (
+    <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+      <h3 style={{ fontWeight: 700, color: '#0F2044', margin: '0 0 8px', fontSize: 18 }}>Solicitud enviada</h3>
+      <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.6, margin: '0 0 20px' }}>
+        Tu solicitud de cupo para <strong>{alumnoNombre}</strong> fue enviada a <strong>{confirmado.tpNombre}</strong>.<br />
+        Te avisaremos cuando sea aceptada.
+      </p>
+      <button onClick={onCerrar} style={{ padding: '10px 24px', borderRadius: 8, background: '#0F2044', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
+        Cerrar
+      </button>
+    </div>
+  )
+
+  return (
+    <div>
+      <h3 style={{ fontWeight: 700, color: '#0F2044', margin: '0 0 16px', fontSize: 16 }}>
+        Cambiar establecimiento — {alumnoNombre}
+      </h3>
+
+      {/* Filtro por colegio */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <select
+          value={colegioFiltro}
+          onChange={e => setColegioFiltro(e.target.value)}
+          style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #dde4ef', fontSize: 14, minWidth: 180 }}
+          aria-label="Filtrar por colegio"
+        >
+          <option value="">Todos los colegios</option>
+          {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        </select>
+        <button
+          onClick={buscar}
+          disabled={cargando}
+          style={{ padding: '10px 18px', borderRadius: 8, background: '#0F2044', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
+        >
+          {cargando ? 'Buscando…' : 'Buscar'}
+        </button>
+      </div>
+
+      {/* Resultados */}
+      {cargando ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} aria-busy="true">
+          {[1,2].map(i => <Skeleton key={i} w="100%" h={80} r={10} />)}
+        </div>
+      ) : transportistas.length === 0 && !cargando ? (
+        <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+          Haz clic en "Buscar" para ver transportistas disponibles.
+        </p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {transportistas.map(tp => (
+            <div key={tp.user_id} style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #e2e8f0', padding: '14px 16px' }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {tp.foto_url
+                  ? <img src={tp.foto_url} alt="" aria-hidden="true" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
+                  : <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>👤</div>
+                }
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: '#0F2044' }}>{tp.nombre}</div>
+                  {tp.descripcion && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{tp.descripcion}</div>}
+                </div>
+                <button
+                  onClick={() => setSolAbierta(solAbierta === tp.user_id ? null : tp.user_id)}
+                  aria-expanded={solAbierta === tp.user_id}
+                  style={{ padding: '8px 14px', borderRadius: 8, background: '#0F2044', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+                >
+                  {solAbierta === tp.user_id ? 'Cancelar' : 'Solicitar'}
+                </button>
+              </div>
+
+              {/* Formulario inline de solicitud */}
+              {solAbierta === tp.user_id && (
+                <div style={{ marginTop: 14, borderTop: '1px solid #e2e8f0', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Modalidad</label>
+                  <select value={modalidad} onChange={e => setModalidad(e.target.value)}
+                    style={{ padding: '10px 12px', borderRadius: 8, border: '1.5px solid #dde4ef', fontSize: 14 }}>
+                    <option value="completo">Ida y vuelta</option>
+                    <option value="ida">Solo ida</option>
+                    <option value="vuelta">Solo vuelta</option>
+                  </select>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Mensaje (opcional)</label>
+                  <textarea
+                    value={nota}
+                    onChange={e => setNota(e.target.value)}
+                    placeholder="Cuéntale algo al transportista…"
+                    maxLength={500}
+                    rows={3}
+                    style={{ padding: '10px 12px', borderRadius: 8, border: '1.5px solid #dde4ef', fontSize: 14, resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                  {error && <p style={{ color: '#dc2626', fontSize: 13, margin: 0 }} role="alert">{error}</p>}
+                  <button
+                    onClick={() => enviarSolicitud(tp.user_id, tp.nombre)}
+                    disabled={enviando}
+                    style={{ padding: '11px 0', borderRadius: 8, background: '#F5C400', color: '#0F2044', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
+                  >
+                    {enviando ? 'Enviando…' : 'Enviar solicitud de cupo'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
