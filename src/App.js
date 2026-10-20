@@ -3472,7 +3472,8 @@ function RegistroApoderado() {
   const [uid, setUid]           = useState(null)   // eslint-disable-line no-unused-vars
   const [error, setError]       = useState('')
   const [enviando, setEnviando] = useState(false)
-  const [mostrarPass, setMostrarPass] = useState(false)
+  const [mostrarPass, setMostrarPass]           = useState(false)
+  const [mostrarConfirmar, setMostrarConfirmar] = useState(false)
 
   // Estado del buscador de transportistas
   const [transportistas, setTransportistas] = useState([])
@@ -3838,9 +3839,23 @@ function RegistroApoderado() {
             </button>
           </div>
           <label style={s.labelLogin} htmlFor="ra-confirmar">Confirmar contraseña</label>
-          <input id="ra-confirmar" style={s.input} type="password" placeholder="Repite tu contraseña"
-            value={form.confirmar} onChange={e => f('confirmar', e.target.value)}
-            required maxLength={128} autoComplete="new-password" />
+          <div style={{ position: 'relative', width: '100%', display: 'block' }}>
+            <input id="ra-confirmar" style={{ ...s.input, paddingRight: 40 }}
+              type={mostrarConfirmar ? 'text' : 'password'} placeholder="Repite tu contraseña"
+              value={form.confirmar} onChange={e => f('confirmar', e.target.value)}
+              required maxLength={128} autoComplete="new-password" />
+            <button type="button" onClick={() => setMostrarConfirmar(v => !v)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0, lineHeight: 1 }}
+              aria-label={mostrarConfirmar ? 'Ocultar contraseña' : 'Mostrar contraseña'} tabIndex={-1}>
+              {mostrarConfirmar
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>
+                : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
+            </button>
+          </div>
+          {form.confirmar && form.password !== form.confirmar && (
+            <p style={{ ...s.errorMsg, marginTop: 4, marginBottom: 0 }} role="alert">Las contraseñas no coinciden</p>
+          )}
           {error && <p style={s.errorMsg} role="alert">{error}</p>}
           <button style={s.btn} type="submit" disabled={enviando}>
             {enviando ? 'Creando cuenta…' : 'Crear cuenta'}
@@ -3865,7 +3880,8 @@ function RegistroTransportista() {
   const [verificando, setVerificando] = useState(false)
   const [error, setError]       = useState('')
   const [enviando, setEnviando] = useState(false)
-  const [mostrarPass, setMostrarPass] = useState(false)
+  const [mostrarPass, setMostrarPass]           = useState(false)
+  const [mostrarConfirmar, setMostrarConfirmar] = useState(false)
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const sanitizar = str => str.trim().slice(0, 254)
@@ -4070,9 +4086,23 @@ function RegistroTransportista() {
             </button>
           </div>
           <label style={s.labelLogin} htmlFor="rt-confirmar">Confirmar contraseña</label>
-          <input id="rt-confirmar" style={s.input} type="password" placeholder="Repite tu contraseña"
-            value={form.confirmar} onChange={e => f('confirmar', e.target.value)}
-            required maxLength={128} autoComplete="new-password" />
+          <div style={{ position: 'relative', width: '100%', display: 'block' }}>
+            <input id="rt-confirmar" style={{ ...s.input, paddingRight: 40 }}
+              type={mostrarConfirmar ? 'text' : 'password'} placeholder="Repite tu contraseña"
+              value={form.confirmar} onChange={e => f('confirmar', e.target.value)}
+              required maxLength={128} autoComplete="new-password" />
+            <button type="button" onClick={() => setMostrarConfirmar(v => !v)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0, lineHeight: 1 }}
+              aria-label={mostrarConfirmar ? 'Ocultar contraseña' : 'Mostrar contraseña'} tabIndex={-1}>
+              {mostrarConfirmar
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>
+                : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
+            </button>
+          </div>
+          {form.confirmar && form.password !== form.confirmar && (
+            <p style={{ ...s.errorMsg, marginTop: 4, marginBottom: 0 }} role="alert">Las contraseñas no coinciden</p>
+          )}
           {error && <p style={s.errorMsg} role="alert">{error}</p>}
           <button style={s.btn} type="submit" disabled={enviando}>
             {enviando ? 'Creando cuenta…' : 'Crear cuenta'}
