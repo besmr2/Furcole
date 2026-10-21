@@ -274,7 +274,7 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
         .maybeSingle()
         .then(({ data }) => { if (data) setCobroConfirmado(data) })
     }
-  }, [pagoOk])
+  }, [pagoOk]) // eslint-disable-line react-hooks/exhaustive-deps
   // Realtime: último evento de subida/bajada recibido
   const [eventoRealtime, setEventoRealtime] = useState(null) // { tipo, nombre, hora }
   // Confirmación de entrega pendiente (persiste hasta que el apoderado confirma)
