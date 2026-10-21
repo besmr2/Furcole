@@ -256,6 +256,7 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
   const [pagando, setPagando]     = useState(null)  // cobro siendo pagado
   const [errorPago, setErrorPago] = useState('')    // mensaje de error pago Flow
   const [exitoPago, setExitoPago] = useState(pagoOk) // banner verde tras retorno de Flow
+  const [cobroConfirmado, setCobroConfirmado] = useState(null) // datos del cobro tras pago exitoso
   const [cambiarTp, setCambiarTp] = useState(false) // modal cambio transportista
 
   // Limpiar ?pago=ok de la URL para evitar que recarga vuelva a mostrar el banner
@@ -265,6 +266,14 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
     url.searchParams.delete('pago')
     url.searchParams.delete('cobro')
     window.history.replaceState({}, '', url.toString())
+    if (cobroIdPago) {
+      supabase
+        .from('cobros')
+        .select('id, monto, mes, estado, alumnos(nombre)')
+        .eq('id', cobroIdPago)
+        .maybeSingle()
+        .then(({ data }) => { if (data) setCobroConfirmado(data) })
+    }
   }, [pagoOk])
   // Realtime: último evento de subida/bajada recibido
   const [eventoRealtime, setEventoRealtime] = useState(null) // { tipo, nombre, hora }
@@ -630,9 +639,41 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
         {seccion === 'cobros' && (
           <>
           {exitoPago && (
-            <div role="status" style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>✅ ¡Pago procesado correctamente!{cobroIdPago ? ' Tu cobro ha sido enviado a confirmación.' : ''}</span>
-              <button onClick={() => setExitoPago(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', fontSize: 16, lineHeight: 1 }} aria-label="Cerrar confirmación">×</button>
+            <div role="status" style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 14, padding: '18px 18px 14px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: cobroConfirmado ? 14 : 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#dcfce7', border: '2px solid #86efac', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>✓</div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#166534' }}>¡Pago recibido!</div>
+                    <div style={{ fontSize: 12, color: '#4ade80' }}>En proceso de confirmación por Flow</div>
+                  </div>
+                </div>
+                <button onClick={() => { setExitoPago(false); setCobroConfirmado(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#86efac', fontSize: 20, lineHeight: 1, padding: '0 2px' }} aria-label="Cerrar">×</button>
+              </div>
+              {cobroConfirmado && (
+                <div style={{ background: '#fff', borderRadius: 10, padding: '12px 14px', border: '1px solid #d1fae5' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 13 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>Alumno/a</div>
+                      <div style={{ fontWeight: 600, color: '#0F2044' }}>{cobroConfirmado.alumnos?.nombre || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>Período</div>
+                      <div style={{ fontWeight: 600, color: '#0F2044' }}>{cobroConfirmado.mes || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>Monto pagado</div>
+                      <div style={{ fontWeight: 700, color: '#16a34a', fontSize: 15 }}>${cobroConfirmado.monto?.toLocaleString('es-CL') || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>Estado</div>
+                      <span style={{ display: 'inline-block', background: cobroConfirmado.estado === 'pagado' ? '#dcfce7' : '#fef3c7', color: cobroConfirmado.estado === 'pagado' ? '#166534' : '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
+                        {cobroConfirmado.estado === 'pagado' ? '✓ Pagado' : 'Procesando…'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {errorPago && (
@@ -893,11 +934,14 @@ function BuscarTransporte({ userId, onVinculado }) {
     const tids = (tcRows || []).map(r => r.user_id)
     if (tids.length === 0) { setResultados([]); setBuscando(false); return }
 
-    // Paso 2: perfil público visible + precio para esa modalidad
-    const [{ data: perfiles }, { data: precios }] = await Promise.all([
+    // Paso 2: perfil público visible + nombre + precio para esa modalidad
+    const [{ data: perfiles }, { data: nombres }, { data: precios }] = await Promise.all([
       supabase.from('transportista_perfil')
         .select('user_id, patente, anos_experiencia, descripcion, capacidad_total, precios_publicos')
         .eq('visible', true)
+        .in('user_id', tids),
+      supabase.from('perfil_transportista')
+        .select('user_id, nombre')
         .in('user_id', tids),
       supabase.from('precios_modalidad')
         .select('user_id, precio_mensual')
@@ -909,13 +953,15 @@ function BuscarTransporte({ userId, onVinculado }) {
     // Paso 3: cupos disponibles (llamada por transportista)
     const resultadosFinal = []
     for (const tp of (perfiles || [])) {
-      const precio = precios?.find(pr => pr.user_id === tp.user_id)
+      const precio   = precios?.find(pr => pr.user_id === tp.user_id)
+      const nombre   = nombres?.find(n  => n.user_id  === tp.user_id)?.nombre || null
       // Si tiene precios_publicos=true, debe tener precio para esa modalidad para aparecer
       if (tp.precios_publicos && !precio) continue
       const { data: cuposData } = await supabase.rpc('cupos_disponibles', { p_user_id: tp.user_id })
       const cupos = cuposData ?? 0
       resultadosFinal.push({
         ...tp,
+        nombre,
         precio_mensual: tp.precios_publicos ? precio?.precio_mensual : null,
         cupos_disponibles: cupos,
       })
@@ -1016,47 +1062,76 @@ function BuscarTransporte({ userId, onVinculado }) {
         </div>
       </div>
 
+      {/* Skeleton mientras busca */}
+      {buscando && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {[1,2].map(i => (
+            <div key={i} style={{ ...p.card, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px' }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#e2e8f0', animation: 'shimmer 1.4s ease infinite' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ height: 14, borderRadius: 6, background: '#e2e8f0', width: '55%', marginBottom: 8, animation: 'shimmer 1.4s ease infinite' }} />
+                    <div style={{ height: 11, borderRadius: 6, background: '#f1f5f9', width: '35%', animation: 'shimmer 1.4s ease infinite' }} />
+                  </div>
+                  <div style={{ width: 64, height: 28, borderRadius: 8, background: '#e2e8f0', animation: 'shimmer 1.4s ease infinite' }} />
+                </div>
+                <div style={{ height: 11, borderRadius: 6, background: '#f1f5f9', width: '80%', marginBottom: 6, animation: 'shimmer 1.4s ease infinite' }} />
+                <div style={{ height: 11, borderRadius: 6, background: '#f1f5f9', width: '60%', marginBottom: 16, animation: 'shimmer 1.4s ease infinite' }} />
+                <div style={{ height: 38, borderRadius: 8, background: '#e2e8f0', animation: 'shimmer 1.4s ease infinite' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Resultados */}
-      {resultados !== null && (() => {
+      {!buscando && resultados !== null && (() => {
         if (resultados.length === 0) return (
           <div style={{ ...p.card }}>
-            <div style={{ padding: '32px 20px', textAlign: 'center', color: '#64748b', fontSize: 14 }}>
-              No hay transportistas disponibles para ese colegio y modalidad en este momento.<br/>
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>Prueba con otra modalidad o vuelve a intentar pronto.</span>
+            <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🔍</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#0F2044', marginBottom: 6 }}>Sin resultados por ahora</div>
+              <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                No hay transportistas disponibles para <strong>{colNombre}</strong> en modalidad <strong>{LABEL_MODALIDAD[modalidadSel]}</strong>.<br/>
+                <span style={{ fontSize: 12, color: '#94a3b8' }}>Prueba otra modalidad o vuelve pronto.</span>
+              </div>
             </div>
           </div>
         )
         return (
           <div>
             <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12, fontWeight: 500 }}>
-              {resultados.length} resultado{resultados.length > 1 ? 's' : ''} para {LABEL_MODALIDAD[modalidadSel]} · {colNombre}
+              {resultados.length} resultado{resultados.length > 1 ? 's' : ''} · {LABEL_MODALIDAD[modalidadSel]} · {colNombre}
             </div>
             {resultados.map(tp => {
               const yaSolicitado = solicitudesEnviadas.includes(tp.user_id)
               const sinCupos     = tp.cupos_disponibles <= 0
               return (
-                <div key={tp.user_id} style={{ ...p.card, border: sinCupos ? '1.5px solid #e2e8f0' : '1.5px solid #bfdbfe', opacity: sinCupos ? 0.65 : 1 }}>
+                <div key={tp.user_id} style={{ ...p.card, border: sinCupos ? '1.5px solid #e2e8f0' : '1.5px solid #bfdbfe', opacity: sinCupos ? 0.7 : 1 }}>
                   <div style={{ padding: '16px 20px' }}>
-                    {/* Encabezado tarjeta */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: '#0F2044', marginBottom: 2 }}>
-                          Patente: {tp.patente || 'No indicada'}
-                        </div>
-                        {tp.anos_experiencia > 0 && (
-                          <div style={{ fontSize: 12, color: '#64748b' }}>
-                            {tp.anos_experiencia} año{tp.anos_experiencia > 1 ? 's' : ''} de experiencia
-                          </div>
-                        )}
+                    {/* Encabezado: avatar + nombre + precio */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+                      <div style={{ flexShrink: 0, width: 44, height: 44, borderRadius: '50%', background: sinCupos ? '#e2e8f0' : '#dbeafe', border: `2px solid ${sinCupos ? '#cbd5e1' : '#93c5fd'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color: sinCupos ? '#94a3b8' : '#1d4ed8' }}>
+                        {tp.nombre ? tp.nombre.trim().charAt(0).toUpperCase() : '🚐'}
                       </div>
-                      <div style={{ textAlign: 'right' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 15, color: '#0F2044', marginBottom: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {tp.nombre || 'Transportista escolar'}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748b', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {tp.patente && <span>🚌 {tp.patente}</span>}
+                          {tp.anos_experiencia > 0 && <span>⭐ {tp.anos_experiencia} año{tp.anos_experiencia > 1 ? 's' : ''} exp.</span>}
+                        </div>
+                      </div>
+                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
                         {tp.precio_mensual != null ? (<>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: '#0F2044' }}>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: '#0F2044', lineHeight: 1.1 }}>
                             ${tp.precio_mensual.toLocaleString('es-CL')}
                           </div>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>mensual</div>
+                          <div style={{ fontSize: 10, color: '#94a3b8' }}>/mes</div>
                         </>) : (
-                          <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', maxWidth: 80 }}>Precio a convenir</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8', maxWidth: 72, textAlign: 'right', lineHeight: 1.3 }}>A convenir</div>
                         )}
                       </div>
                     </div>
@@ -1066,27 +1141,27 @@ function BuscarTransporte({ userId, onVinculado }) {
                         {tp.descripcion}
                       </p>
                     )}
-                    {/* Métricas */}
+                    {/* Chips: cupos + capacidad */}
                     <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                      <span style={{ background: sinCupos ? '#fee2e2' : '#dcfce7', color: sinCupos ? '#991b1b' : '#166534', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
-                        {sinCupos ? 'Sin cupos' : `${tp.cupos_disponibles} cupo${tp.cupos_disponibles > 1 ? 's' : ''} disponible${tp.cupos_disponibles > 1 ? 's' : ''}`}
+                      <span style={{ background: sinCupos ? '#fee2e2' : '#dcfce7', color: sinCupos ? '#991b1b' : '#166534', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
+                        {sinCupos ? '● Sin cupos' : `● ${tp.cupos_disponibles} cupo${tp.cupos_disponibles > 1 ? 's' : ''} libre${tp.cupos_disponibles > 1 ? 's' : ''}`}
                       </span>
                       {tp.capacidad_total && (
-                        <span style={{ background: '#f1f5f9', color: '#475569', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>
+                        <span style={{ background: '#f1f5f9', color: '#475569', fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20 }}>
                           {tp.capacidad_total} plazas totales
                         </span>
                       )}
                     </div>
                     {/* Botón solicitar */}
                     {yaSolicitado ? (
-                      <div style={{ textAlign: 'center', padding: '10px 0', fontSize: 13, color: '#16a34a', fontWeight: 600, background: '#f0fdf4', borderRadius: 8 }}>
+                      <div style={{ textAlign: 'center', padding: '10px 0', fontSize: 13, color: '#16a34a', fontWeight: 600, background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
                         ✓ Solicitud enviada — esperando respuesta
                       </div>
                     ) : (
                       <button
                         onClick={() => { setModalSol(tp); setNotaAp(''); setMsgSol(null) }}
                         disabled={sinCupos}
-                        style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: sinCupos ? '#e2e8f0' : '#0F2044', color: sinCupos ? '#94a3b8' : '#F5C400', fontWeight: 700, fontSize: 14, cursor: sinCupos ? 'not-allowed' : 'pointer' }}>
+                        style={{ width: '100%', padding: '11px 0', borderRadius: 8, border: 'none', background: sinCupos ? '#e2e8f0' : '#0F2044', color: sinCupos ? '#94a3b8' : '#F5C400', fontWeight: 700, fontSize: 14, cursor: sinCupos ? 'not-allowed' : 'pointer' }}>
                         {sinCupos ? 'Sin cupos disponibles' : 'Solicitar cupo'}
                       </button>
                     )}
