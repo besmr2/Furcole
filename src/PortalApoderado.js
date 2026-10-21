@@ -268,6 +268,9 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
   }, [pagoOk])
   // Realtime: último evento de subida/bajada recibido
   const [eventoRealtime, setEventoRealtime] = useState(null) // { tipo, nombre, hora }
+  // Confirmación de entrega pendiente (persiste hasta que el apoderado confirma)
+  const [entregadoPendiente, setEntregadoPendiente] = useState(null) // { alumnoId, nombre, hora, viajeId, transportistaNombre }
+  const [confirmando, setConfirmando]               = useState(false)
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -336,16 +339,37 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
           // Ignorar tipos que no producen notificación visual
           if (!['proximo','subida','bajada','entregado','saltado'].includes(ev.tipo)) return
 
-          setEventoRealtime({ tipo: ev.tipo, nombre, hora })
-          // Banner más largo para 'proximo' (necesita tiempo para prepararse)
-          const duracion = ev.tipo === 'proximo' ? 20000 : 12000
-          setTimeout(() => setEventoRealtime(null), duracion)
+          if (ev.tipo === 'entregado') {
+            // Pantalla de confirmación persistente (no desaparece sola)
+            const tpNombre = datos?.perfiles?.[0]?.nombre || 'Tu transportista'
+            setEntregadoPendiente({ alumnoId: ev.alumno_id, nombre, hora, viajeId: ev.viaje_id, transportistaNombre: tpNombre })
+          } else {
+            setEventoRealtime({ tipo: ev.tipo, nombre, hora })
+            // Banner más largo para 'proximo' (necesita tiempo para prepararse)
+            const duracion = ev.tipo === 'proximo' ? 20000 : 12000
+            setTimeout(() => setEventoRealtime(null), duracion)
+          }
         }
       )
       .subscribe()
 
     return () => { if (channel) supabase.removeChannel(channel) }
   }, [datos, user.id])
+
+  async function confirmarRecepcion() {
+    if (!entregadoPendiente) return
+    setConfirmando(true)
+    try {
+      await supabase.from('eventos_viaje').insert({
+        user_id:   user.id,
+        alumno_id: entregadoPendiente.alumnoId,
+        tipo:      'confirmado_apoderado',
+        viaje_id:  entregadoPendiente.viajeId,
+      })
+    } catch (_) { /* no bloquear al apoderado */ }
+    setConfirmando(false)
+    setEntregadoPendiente(null)
+  }
 
   async function pagarConFlow(cobro) {
     setPagando(cobro.id)
@@ -409,6 +433,77 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
           {IC.logout} Salir
         </button>
       </div>
+
+      {/* ── Overlay confirmación de entrega ─────────────────────────────────── */}
+      {entregadoPendiente && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirmación de entrega"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 400,
+            background: 'rgba(15,32,68,.82)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '24px 20px',
+            animation: 'fadeIn .3s ease',
+          }}
+        >
+          <div style={{
+            background: '#fff', borderRadius: 20, padding: '36px 28px',
+            maxWidth: 360, width: '100%', textAlign: 'center',
+            boxShadow: '0 24px 60px rgba(0,0,0,.35)',
+            animation: 'scaleUp .3s ease',
+          }}>
+            {/* Checkmark animado */}
+            <svg width="72" height="72" viewBox="0 0 72 72" fill="none" aria-hidden="true" style={{ display: 'block', margin: '0 auto 20px' }}>
+              <circle cx="36" cy="36" r="34" fill="#dcfce7" stroke="#16a34a" strokeWidth="2.5"/>
+              <path d="M22 36.5l10 10 18-20" stroke="#16a34a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{ strokeDasharray: 50, strokeDashoffset: 50, animation: 'drawCheck .45s .2s ease forwards' }}/>
+            </svg>
+
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#0F2044', fontFamily: "'Sora',system-ui,sans-serif", marginBottom: 8 }}>
+              ¡Llegó a casa!
+            </div>
+            <div style={{ fontSize: 15, color: '#334155', marginBottom: 4 }}>
+              <strong>{entregadoPendiente.nombre}</strong> fue entregado/a
+            </div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 6 }}>
+              por {entregadoPendiente.transportistaNombre}
+            </div>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: '#f0fdf4', border: '1px solid #86efac',
+              borderRadius: 20, padding: '5px 14px', fontSize: 13, fontWeight: 700, color: '#166534',
+              marginBottom: 28,
+            }}>
+              <svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <circle cx="9" cy="9" r="7.5"/><path d="M9 5v4l3 2"/>
+              </svg>
+              {entregadoPendiente.hora}
+            </div>
+
+            <button
+              onClick={confirmarRecepcion}
+              disabled={confirmando}
+              style={{
+                width: '100%', padding: '14px 0', borderRadius: 12, border: 'none',
+                background: confirmando ? '#94a3b8' : '#16a34a',
+                color: '#fff', fontSize: 16, fontWeight: 700, cursor: confirmando ? 'default' : 'pointer',
+                fontFamily: "'Inter',system-ui,sans-serif",
+                transition: 'background .15s',
+              }}
+            >
+              {confirmando ? 'Confirmando…' : '✓ Confirmar recepción'}
+            </button>
+            <button
+              onClick={() => setEntregadoPendiente(null)}
+              style={{ marginTop: 12, background: 'none', border: 'none', color: '#94a3b8', fontSize: 13, cursor: 'pointer', width: '100%' }}
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Banner Realtime ─ cubre todos los tipos de evento_viaje */}
       {eventoRealtime && (() => {
@@ -730,8 +825,11 @@ function Portal({ user, onLogout, pagoOk = false, cobroIdPago = null }) {
       </div>
 
       <style>{`
-        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes shimmer   { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         @keyframes slideDown { from{transform:translateY(-100%);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes fadeIn    { from{opacity:0} to{opacity:1} }
+        @keyframes scaleUp   { from{transform:scale(.85);opacity:0} to{transform:scale(1);opacity:1} }
+        @keyframes drawCheck { to{stroke-dashoffset:0} }
       `}</style>
     </div>
   )
